@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>城東機械作業工程表</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --c-design:   #4A90D9;
+    --c-material: #5CB85C;
+    --c-process:  #F0AD4E;
+    --c-assembly: #D9534F;
+    --c-today:    #FF4444;
+    --c-bg:       #F5F7FA;
+    --c-card:     #FFFFFF;
+    --c-border:   #E0E4EA;
+    --c-text:     #2C3E50;
+    --c-muted:    #7F8C9A;
+    --radius:     8px;
+  }
+  body { font-family: 'Arial', 'Helvetica Neue', sans-serif; background: var(--c-bg); color: var(--c-text); font-size: 13px; }
+
+  /* ===== Header ===== */
+  .app-header {
+    background: linear-gradient(135deg, #1a3a5c 0%, #2c6fad 100%);
+    color: #fff; padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .app-header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+  .app-header .today-badge {
+    background: rgba(255,255,255,0.15); border-radius: 20px;
+    padding: 4px 14px; font-size: 12px;
+  }
+  .header-actions { display: flex; gap: 8px; }
+  .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: #2c6fad; color: #fff; }
+  .btn-primary:hover { background: #1a5490; }
+  .btn-success { background: #27ae60; color: #fff; }
+  .btn-success:hover { background: #1e8449; }
+  .btn-danger  { background: #e74c3c; color: #fff; }
+  .btn-danger:hover  { background: #c0392b; }
+  .btn-ghost  { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.25); }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
+
+  /* ===== Main layout ===== */
+  .main { padding: 20px 24px; max-width: 1600px; margin: 0 auto; }
+
+  /* ===== Summary cards ===== */
+  .summary { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .summary-card {
+    background: var(--c-card); border-radius: var(--radius);
+    padding: 14px 20px; flex: 1; min-width: 140px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    border-left: 4px solid transparent;
+  }
+  .summary-card.total  { border-color: #2c6fad; }
+  .summary-card.design { border-color: var(--c-design); }
+  .summary-card.mat    { border-color: var(--c-material); }
+  .summary-card.proc   { border-color: var(--c-process); }
+  .summary-card.asm    { border-color: var(--c-assembly); }
+  .summary-card .label { font-size: 11px; color: var(--c-muted); margin-bottom: 4px; }
+  .summary-card .value { font-size: 24px; font-weight: 700; }
+
+  /* ===== Legend ===== */
+  .legend { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+  /* ===== Section ===== */
+  .section { background: var(--c-card); border-radius: var(--radius); box-shadow: 0 1px 4px rgba(0,0,0,0.07); margin-bottom: 20px; overflow: hidden; }
+  .section-header { padding: 12px 20px; border-bottom: 1px solid var(--c-border); display: flex; align-items: center; justify-content: space-between; }
+  .section-header h2 { font-size: 14px; font-weight: 700; }
+
+  /* ===== Gantt Chart ===== */
+  .gantt-wrapper { overflow-x: auto; }
+  .gantt-table { border-collapse: collapse; min-width: 100%; }
+  .gantt-table th, .gantt-table td { border: 1px solid var(--c-border); }
+  .gantt-table .col-name { width: 200px; min-width: 200px; position: sticky; left: 0; background: var(--c-card); z-index: 2; padding: 6px 10px; font-weight: 600; font-size: 12px; }
+  .gantt-table .col-progress { width: 90px; min-width: 90px; position: sticky; left: 200px; background: var(--c-card); z-index: 2; padding: 6px 8px; text-align: center; }
+  .gantt-header-month { background: #1a3a5c; color: #fff; text-align: center; padding: 4px 0; font-size: 11px; font-weight: 700; }
+  .gantt-header-day { text-align: center; padding: 3px 0; font-size: 10px; width: 20px; min-width: 20px; }
+  .gantt-header-day.weekend { background: #F8E8E8; color: #c0392b; }
+  .gantt-header-day.holiday { background: #FFF0E0; color: #e67e22; }
+  .gantt-header-day.today-col { background: #FFEAEA; color: var(--c-today); font-weight: 800; }
+  .gantt-cell { width: 20px; min-width: 20px; height: 28px; padding: 0; }
+  .gantt-cell.weekend { background: #FAFAFA; }
+  .gantt-cell.holiday { background: #FFF8F0; }
+  .gantt-cell.today-col { border-left: 2px solid var(--c-today) !important; }
+  .gantt-cell.phase-design   { background: #BDD7EE; }
+  .gantt-cell.phase-material { background: #C6EFCE; }
+  .gantt-cell.phase-process  { background: #FFEB9C; }
+  .gantt-cell.phase-assembly { background: #FFC7CE; }
+  .gantt-row:hover .col-name,
+  .gantt-row:hover .col-progress { background: #f0f4f8; }
+  .gantt-row:hover .gantt-cell { filter: brightness(0.93); }
+
+  /* Progress bar */
+  .progress-bar-wrap { width: 100%; background: #eee; border-radius: 4px; height: 8px; margin: 2px 0; }
+  .progress-bar-fill { height: 8px; border-radius: 4px; background: #2c6fad; transition: width 0.3s; }
+  .progress-text { font-size: 10px; color: var(--c-muted); }
+  .phase-badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 700; color: #fff; }
+  .phase-badge.設計   { background: var(--c-design); }
+  .phase-badge.資材   { background: var(--c-material); }
+  .phase-badge.加工   { background: var(--c-process); color: #333; }
+  .phase-badge.組立   { background: var(--c-assembly); }
+  .phase-badge.完了   { background: #888; }
+
+  /* ===== Project List Table ===== */
+  .list-table { width: 100%; border-collapse: collapse; }
+  .list-table th { background: #f0f4f8; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; color: var(--c-muted); border-bottom: 2px solid var(--c-border); position: sticky; top: 0; }
+  .list-table td { padding: 8px 10px; border-bottom: 1px solid var(--c-border); vertical-align: middle; }
+  .list-table tr:hover td { background: #f7f9fc; }
+  .list-table .amount { text-align: right; font-weight: 600; }
+  .delay-badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+  .delay-badge.ok   { background: #d4edda; color: #155724; }
+  .delay-badge.late { background: #f8d7da; color: #721c24; }
+
+  /* ===== Modal ===== */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--c-card); border-radius: 10px; width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  .modal-header { padding: 18px 24px; border-bottom: 1px solid var(--c-border); display: flex; align-items: center; justify-content: space-between; }
+  .modal-header h3 { font-size: 15px; font-weight: 700; }
+  .modal-close { background: none; border: none; cursor: pointer; font-size: 20px; color: var(--c-muted); line-height: 1; }
+  .modal-body { padding: 20px 24px; }
+  .modal-footer { padding: 14px 24px; border-top: 1px solid var(--c-border); display: flex; gap: 8px; justify-content: flex-end; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group.full { grid-column: span 2; }
+  .form-group label { font-size: 11px; font-weight: 700; color: var(--c-muted); }
+  .form-group input, .form-group select {
+    border: 1px solid var(--c-border); border-radius: 6px;
+    padding: 7px 10px; font-size: 13px; color: var(--c-text);
+    font-family: 'Arial', 'Helvetica Neue', sans-serif;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus, .form-group select:focus { outline: none; border-color: #2c6fad; }
+  .form-group textarea {
+    border: 1px solid var(--c-border); border-radius: 6px;
+    padding: 7px 10px; font-size: 13px; color: var(--c-text);
+    resize: vertical; min-height: 56px; font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  .form-group textarea:focus { outline: none; border-color: #2c6fad; }
+  .memo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .memo-phase-label { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  .memo-badge { display: inline-flex; align-items: center; gap: 3px; background: #e8f4fd; color: #2c6fad; border-radius: 10px; padding: 1px 7px; font-size: 10px; font-weight: 700; cursor: pointer; }
+  .memo-badge:hover { background: #d0eaf9; }
+
+  /* ===== Date comment ===== */
+  .date-comment-add { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+  .date-comment-add input[type="date"] { flex: 0 0 130px; }
+  .date-comment-add input[type="text"]  { flex: 1; }
+  .date-comment-list { max-height: 130px; overflow-y: auto; border: 1px solid var(--c-border); border-radius: 6px; padding: 4px 8px; background: #fafbfc; }
+  .dc-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
+  .dc-row:last-child { border-bottom: none; }
+  .dc-date { font-weight: 700; color: #2c6fad; min-width: 44px; flex-shrink: 0; }
+  .dc-text { flex: 1; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dc-del  { background: none; border: none; cursor: pointer; color: #e74c3c; font-size: 13px; padding: 0; flex-shrink: 0; line-height: 1; }
+  /* Gantt cell comment dot */
+  .gantt-cell { position: relative; }
+  .cell-comment-icon {
+    position: absolute; top: 2px; left: 2px;
+    font-size: 9px; line-height: 1; cursor: pointer; z-index: 3;
+    display: flex; align-items: center; gap: 1px;
+  }
+  .dc-cnt {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #e74c3c; color: #fff; border-radius: 50%;
+    width: 10px; height: 10px; font-size: 7px; font-weight: 700;
+    vertical-align: top; flex-shrink: 0;
+  }
+  .form-section-title { font-size: 12px; font-weight: 700; color: var(--c-muted); margin: 14px 0 8px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--c-border); padding-bottom: 4px; }
+  .calc-preview { background: #f0f4f8; border-radius: 6px; padding: 12px 14px; margin-top: 14px; font-size: 12px; }
+  .calc-preview .row { display: flex; justify-content: space-between; padding: 3px 0; }
+  .calc-preview .row span:first-child { color: var(--c-muted); }
+  .calc-preview .row span:last-child { font-weight: 700; }
+
+  /* ===== Settings ===== */
+  .settings-panel { padding: 16px 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .settings-panel .form-group label { font-size: 11px; }
+
+  /* ===== Empty state ===== */
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--c-muted); }
+
+  /* ===== Filter bar ===== */
+  .filter-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 10px 16px; border-bottom: 1px solid var(--c-border);
+    background: #f8fafc;
+  }
+  .filter-bar input[type="text"] {
+    border: 1px solid var(--c-border); border-radius: 6px;
+    padding: 5px 10px; font-size: 12px; font-family: inherit;
+    min-width: 160px; flex: 1;
+  }
+  .filter-bar input[type="text"]:focus { outline: none; border-color: #2c6fad; }
+  .filter-bar select {
+    border: 1px solid var(--c-border); border-radius: 6px;
+    padding: 5px 8px; font-size: 12px; font-family: inherit;
+    background: #fff; cursor: pointer;
+  }
+  .list-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+  .list-table th.sortable:hover { background: #e4eaf2; }
+  .sort-icon { margin-left: 3px; font-size: 10px; color: #2c6fad; }
+  .filter-count { font-size: 11px; color: var(--c-muted); margin-left: auto; white-space: nowrap; }
+  @media (max-width: 768px) {
+    .filter-bar { padding: 8px 10px; gap: 6px; }
+    .filter-bar input[type="text"] { min-width: 120px; }
+    .filter-count { width: 100%; margin-left: 0; }
+  }
+
+  /* ===== Trash ===== */
+  .trash-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #e74c3c; color: #fff; border-radius: 50%;
+    width: 16px; height: 16px; font-size: 10px; font-weight: 700;
+    margin-left: 3px; vertical-align: middle; line-height: 1;
+  }
+  .trash-table { width: 100%; border-collapse: collapse; }
+  .trash-table th { background: #f9f0f0; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; color: var(--c-muted); border-bottom: 2px solid #f0d0d0; }
+  .trash-table td { padding: 8px 10px; border-bottom: 1px solid var(--c-border); vertical-align: middle; font-size: 12px; }
+  .trash-table tr:hover td { background: #fff5f5; }
+  .trash-date { font-size: 10px; color: var(--c-muted); }
+  .empty-state .icon { font-size: 40px; margin-bottom: 10px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #f0f0f0; }
+  ::-webkit-scrollbar-thumb { background: #c0c0c0; border-radius: 3px; }
+
+  /* ===== Toast ===== */
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(60px);
+    background: #2c3e50; color: #fff; padding: 10px 22px; border-radius: 24px;
+    font-size: 13px; font-weight: 600; z-index: 9999;
+    opacity: 0; transition: opacity 0.25s, transform 0.25s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.success { background: #27ae60; }
+  .toast.error   { background: #e74c3c; }
+
+  /* ===== Inline error ===== */
+  .field-error { font-size: 11px; color: #e74c3c; margin-top: 3px; display: none; }
+  .form-group.has-error input, .form-group.has-error select { border-color: #e74c3c; }
+
+  /* ===== Mobile ===== */
+  @media (max-width: 768px) {
+    /* Header */
+    .app-header { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+    .app-header h1 { font-size: 14px; }
+    .app-header .today-badge { font-size: 10px; padding: 3px 10px; }
+    #syncBadge { font-size: 10px !important; padding: 3px 8px !important; }
+    .header-actions { gap: 5px; }
+    .btn { padding: 6px 10px; font-size: 11px; }
+    .btn-ghost span, .btn-ghost-text { display: none; }
+
+    /* Main */
+    .main { padding: 10px 10px; }
+
+    /* Summary cards: 2列グリッド */
+    .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .summary-card { padding: 10px 12px; min-width: unset; }
+    .summary-card .value { font-size: 20px; }
+    .summary-card .label { font-size: 10px; }
+
+    /* Section */
+    .section-header { padding: 10px 12px; flex-wrap: wrap; gap: 6px; }
+    .section-header h2 { font-size: 13px; }
+
+    /* Legend: 折り返し・小さく */
+    .legend { gap: 10px; }
+    .legend-item { font-size: 10px; }
+    .legend-dot { width: 10px; height: 10px; }
+
+    /* Gantt: ガント行の高さ */
+    .gantt-cell { height: 34px; }
+    .gantt-table .col-name { font-size: 10px; padding: 4px 6px; width: 140px; min-width: 140px; }
+    .gantt-table .col-progress { width: 72px; min-width: 72px; left: 140px; padding: 4px 4px; }
+    .progress-bar-wrap { height: 6px; }
+    .progress-bar-fill { height: 6px; }
+    .progress-text { font-size: 10px; }
+
+    /* Project list table: 横スクロール */
+    .list-table th, .list-table td { padding: 7px 8px; font-size: 11px; white-space: nowrap; }
+
+    /* Modal: 全画面 */
+    .modal {
+      width: 100%; max-width: 100%;
+      border-radius: 16px 16px 0 0;
+      position: fixed; bottom: 0; left: 0; right: 0;
+      max-height: 92vh;
+    }
+    .modal-overlay { align-items: flex-end; }
+    .modal-header { padding: 14px 16px; }
+    .modal-body { padding: 14px 16px; }
+    .modal-footer { padding: 12px 16px; }
+
+    /* Form: 1列 */
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: span 1; }
+    .form-group input, .form-group select { padding: 10px 12px; font-size: 14px; }
+    .form-group textarea { font-size: 14px; }
+    .memo-grid { grid-template-columns: 1fr; }
+
+    /* Settings: 2列 */
+    .settings-panel { grid-template-columns: 1fr 1fr; padding: 12px 12px; }
+  }
+
+  @media (max-width: 400px) {
+    .app-header h1 { font-size: 12px; }
+    .btn { padding: 5px 8px; font-size: 10px; }
+    .summary { grid-template-columns: repeat(3, 1fr); }
+    .summary-card .value { font-size: 18px; }
+  }
+</style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<!-- Header -->
+<div class="app-header">
+  <div>
+    <h1>⚙ 城東機械作業工程表</h1>
+  </div>
+  <span class="today-badge" id="todayLabel"></span>
+  <span id="syncBadge" style="background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;font-size:11px;display:none"></span>
+  <div class="header-actions">
+    <button class="btn btn-success" onclick="openAddModal()">＋ 受注追加</button>
+    <button class="btn btn-ghost" onclick="exportData()">📥 エクスポート</button>
+    <button class="btn btn-ghost" onclick="toggleTrash()">🗑 ゴミ箱<span id="trashBadge" style="display:none" class="trash-badge"></span></button>
+    <button class="btn btn-ghost" onclick="toggleSettings()">⚙ 設定</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Summary -->
+  <div class="summary" id="summaryCards"></div>
+
+  <!-- Settings Panel -->
+  <div class="section" id="settingsSection" style="display:none">
+    <div class="section-header"><h2>⚙ 設定</h2></div>
+    <div class="settings-panel">
+      <div class="form-group">
+        <label>設計比率</label>
+        <input type="number" id="s_design" step="0.01" min="0" max="1" value="0.20" onchange="saveSettings()">
+      </div>
+      <div class="form-group">
+        <label>資材比率</label>
+        <input type="number" id="s_material" step="0.01" min="0" max="1" value="0.25" onchange="saveSettings()">
+      </div>
+      <div class="form-group">
+        <label>加工比率</label>
+        <input type="number" id="s_process" step="0.01" min="0" max="1" value="0.35" onchange="saveSettings()">
+      </div>
+      <div class="form-group">
+        <label>組立比率</label>
+        <input type="number" id="s_assembly" step="0.01" min="0" max="1" value="0.20" onchange="saveSettings()">
+      </div>
+    </div>
+    <div style="padding: 0 20px 16px">
+      <div class="form-section-title" style="margin-top:8px">🗓 会社休日管理</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <input type="date" id="s_holiday_input" style="border:1px solid var(--c-border);border-radius:6px;padding:6px 10px;font-size:13px">
+        <button class="btn btn-primary btn-sm" onclick="addHoliday()">＋ 追加</button>
+      </div>
+      <div id="holidayList" style="display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow-y:auto"></div>
+    </div>
+  </div>
+
+  <!-- Trash Panel -->
+  <div class="section" id="trashSection" style="display:none">
+    <div class="section-header">
+      <h2>🗑 ゴミ箱</h2>
+      <button class="btn btn-danger btn-sm" onclick="emptyTrash()">🗑 すべて完全削除</button>
+    </div>
+    <div style="overflow-x:auto">
+      <div id="trashContent"></div>
+    </div>
+  </div>
+
+  <!-- Gantt Chart -->
+  <div class="section">
+    <div class="section-header">
+      <h2>📊 ガントチャート</h2>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#BDD7EE"></div>設計</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#C6EFCE"></div>資材</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#FFEB9C"></div>加工</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#FFC7CE"></div>組立</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#FF4444;width:4px;border-radius:2px"></div>今日</div>
+      </div>
+    </div>
+    <div class="gantt-wrapper" id="ganttWrapper">
+      <div class="empty-state"><div class="icon">📋</div>受注を追加するとガントチャートが表示されます</div>
+    </div>
+  </div>
+
+  <!-- Project List -->
+  <div class="section">
+    <div class="section-header"><h2>📝 受注一覧</h2></div>
+    <div class="filter-bar">
+      <input type="text" id="ft_name" placeholder="🔍 受注品名で検索" oninput="applyTableFilter()">
+      <select id="ft_type" onchange="applyTableFilter()">
+        <option value="">分類：すべて</option>
+        <option value="計画">計画</option>
+        <option value="実績">実績</option>
+      </select>
+      <select id="ft_phase" onchange="applyTableFilter()">
+        <option value="">工程：すべて</option>
+        <option value="設計">設計</option>
+        <option value="資材">資材</option>
+        <option value="加工">加工</option>
+        <option value="組立">組立</option>
+        <option value="完了">完了</option>
+      </select>
+      <button class="btn btn-sm" style="background:#e8edf3;color:#555" onclick="resetTableFilter()">✕ リセット</button>
+      <span class="filter-count" id="filterCount"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="list-table" id="projectTable">
+        <thead id="projectTableHead"></thead>
+        <tbody id="projectTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Gantt Memo Tooltip -->
+<div id="ganttTip" style="position:fixed;z-index:9999;display:none;background:#fff;border:1px solid #e0e4ea;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:12px 14px;min-width:200px;max-width:280px;font-size:12px;pointer-events:none;line-height:1.6"></div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">受注追加</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full" id="fg_name">
+          <label>受注品名 *</label>
+          <input type="text" id="f_name" placeholder="例：神山商事 ３山角スパン成形機">
+          <span class="field-error" id="err_name">受注品名を入力してください</span>
+        </div>
+        <div class="form-group">
+          <label>分類</label>
+          <select id="f_type">
+            <option value="計画">計画</option>
+            <option value="実績">実績</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>受注金額（円）</label>
+          <input type="number" id="f_amount" placeholder="30000000">
+        </div>
+        <div class="form-group">
+          <label>受注日</label>
+          <input type="date" id="f_order_date">
+        </div>
+        <div class="form-group"></div>
+      </div>
+
+      <div class="form-section-title">計画日程</div>
+      <div class="form-grid">
+        <div class="form-group" id="fg_planned_start">
+          <label>着手予定日 *</label>
+          <input type="date" id="f_planned_start" onchange="updatePreview()">
+          <span class="field-error" id="err_start">着手予定日を入力してください</span>
+        </div>
+        <div class="form-group" id="fg_planned_delivery">
+          <label>【要求】納品日 *</label>
+          <input type="date" id="f_planned_delivery" onchange="updatePreview()">
+          <span class="field-error" id="err_delivery">【要求】納品日を入力してください</span>
+        </div>
+      </div>
+
+      <div class="form-section-title">実績日程</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>着手実績日</label>
+          <input type="date" id="f_actual_start" onchange="updatePreview()">
+        </div>
+        <div class="form-group">
+          <label>納品実績日</label>
+          <input type="date" id="f_actual_delivery">
+        </div>
+      </div>
+
+      <div class="form-section-title">工程実績完了日</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>設計完了実績</label>
+          <input type="date" id="f_actual_design">
+        </div>
+        <div class="form-group">
+          <label>資材完了実績</label>
+          <input type="date" id="f_actual_material">
+        </div>
+        <div class="form-group">
+          <label>組立完了実績</label>
+          <input type="date" id="f_actual_assembly">
+        </div>
+      </div>
+
+      <div class="form-section-title">工程比率（この案件の個別設定）</div>
+      <div style="font-size:11px;color:var(--c-muted);margin-bottom:8px">空白のままにすると「⚙ 設定」のグローバル値を使用します</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>設計比率（%）</label>
+          <input type="number" id="f_r_design" step="1" min="0" max="100" placeholder="例: 20" onchange="updateRatioPreview();updatePreview()">
+        </div>
+        <div class="form-group">
+          <label>資材比率（%）</label>
+          <input type="number" id="f_r_material" step="1" min="0" max="100" placeholder="例: 25" onchange="updateRatioPreview();updatePreview()">
+        </div>
+        <div class="form-group">
+          <label>加工比率（%）</label>
+          <input type="number" id="f_r_process" step="1" min="0" max="100" placeholder="例: 35" onchange="updateRatioPreview();updatePreview()">
+        </div>
+        <div class="form-group">
+          <label>組立比率（%）<span style="color:#aaa;font-weight:400">自動</span></label>
+          <input type="number" id="f_r_assembly" readonly style="background:#f5f5f5;color:#888">
+        </div>
+      </div>
+
+      <div class="form-section-title">📝 工程メモ</div>
+      <div class="memo-grid">
+        <div class="form-group">
+          <label><span class="memo-phase-label" style="background:#BDD7EE"></span>設計メモ</label>
+          <textarea id="f_memo_design" placeholder="設計工程のメモ・連絡事項"></textarea>
+        </div>
+        <div class="form-group">
+          <label><span class="memo-phase-label" style="background:#C6EFCE"></span>資材メモ</label>
+          <textarea id="f_memo_material" placeholder="資材・発注関連のメモ"></textarea>
+        </div>
+        <div class="form-group">
+          <label><span class="memo-phase-label" style="background:#FFEB9C"></span>加工メモ</label>
+          <textarea id="f_memo_process" placeholder="加工工程のメモ・注意事項"></textarea>
+        </div>
+        <div class="form-group">
+          <label><span class="memo-phase-label" style="background:#FFC7CE"></span>組立メモ</label>
+          <textarea id="f_memo_assembly" placeholder="組立工程のメモ・確認事項"></textarea>
+        </div>
+        <div class="form-group full">
+          <label>備考</label>
+          <textarea id="f_memo_biko" placeholder="備考・特記事項"></textarea>
+        </div>
+      </div>
+
+      <div class="form-section-title">💬 日付コメント</div>
+      <div class="date-comment-add">
+        <input type="date" id="f_comment_date"
+          style="border:1px solid var(--c-border);border-radius:6px;padding:6px 8px;font-size:13px;font-family:inherit">
+        <input type="text" id="f_comment_text" placeholder="コメントを入力"
+          style="border:1px solid var(--c-border);border-radius:6px;padding:6px 8px;font-size:13px;font-family:inherit;flex:1">
+        <button class="btn btn-primary btn-sm" onclick="addDateComment()">＋</button>
+      </div>
+      <div class="date-comment-list" id="dateCommentList">
+        <div style="color:var(--c-muted);font-size:11px;padding:4px 0">コメントはありません</div>
+      </div>
+
+      <div class="calc-preview" id="calcPreview" style="display:none">
+        <strong style="font-size:11px;color:#555">自動計算プレビュー</strong>
+        <div class="row"><span>総稼働日数</span><span id="pv_days">-</span></div>
+        <div class="row"><span>設計完了予定</span><span id="pv_design">-</span></div>
+        <div class="row"><span>資材完了予定</span><span id="pv_material">-</span></div>
+        <div class="row"><span>加工完了予定</span><span id="pv_process">-</span></div>
+        <div class="row"><span>現在工程</span><span id="pv_phase">-</span></div>
+        <div class="row"><span>進捗率</span><span id="pv_progress">-</span></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveProject()">保存</button>
+      <button class="btn" onclick="closeModal()" style="background:#f0f0f0">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===========================
+// FIREBASE 設定
+// ★ ここに自分のFirebase設定を貼り付けてください ★
+// ===========================
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyAIlJo7VKOF4UMLo_S4qNCviPTLUDMX9j8",
+  authDomain:        "joto-kikai-a1ed8.firebaseapp.com",
+  databaseURL:       "https://joto-kikai-a1ed8-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "joto-kikai-a1ed8",
+  storageBucket:     "joto-kikai-a1ed8.firebasestorage.app",
+  messagingSenderId: "957444211524",
+  appId:             "1:957444211524:web:0755bc79a1d5d9d340cd11"
+};
+
+let db = null;
+const USE_FIREBASE = FIREBASE_CONFIG.apiKey !== "ここに貼り付け";
+if (USE_FIREBASE) {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+    // 接続状態の監視
+    db.ref('.info/connected').on('value', snap => {
+      const badge = document.getElementById('syncBadge');
+      if (snap.val()) {
+        badge.textContent = '🟢 同期中';
+        badge.style.display = 'inline';
+      } else {
+        badge.textContent = '🔴 オフライン';
+        badge.style.display = 'inline';
+      }
+    });
+  } catch(e) { console.error('Firebase初期化エラー:', e); }
+}
+
+// ===========================
+// STATE
+// ===========================
+let projects = [];
+let trashedProjects = [];
+let settings = { designRatio: 0.20, materialRatio: 0.25, processRatio: 0.35, assemblyRatio: 0.20 };
+let editingId = null;
+let tableSort   = { key: 'deliveryDate', dir: 1 };
+let tableFilter = { name: '', type: '', phase: '' };
+
+// 日本の祝日（2026-2027）
+let holidayList = [
+  '2026-01-01','2026-01-12','2026-02-11','2026-02-23','2026-03-20',
+  '2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-05-06',
+  '2026-07-20','2026-08-11','2026-09-21','2026-09-22','2026-09-23',
+  '2026-10-12','2026-11-03','2026-11-23','2026-12-23',
+  '2027-01-01','2027-01-11','2027-02-11','2027-02-23','2027-03-21',
+  '2027-04-29','2027-05-03','2027-05-04','2027-05-05',
+];
+let HOLIDAYS = new Set(holidayList);
+
+// ===========================
+// DATE UTILITIES
+// ===========================
+function parseDate(s) {
+  if (!s) return null;
+  const d = new Date(s);
+  d.setHours(0,0,0,0);
+  return isNaN(d) ? null : d;
+}
+function formatDate(d) {
+  if (!d) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+function formatDateJP(d) {
+  if (!d) return '-';
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+function isWeekend(d) { return d.getDay() === 0 || d.getDay() === 6; }
+function isHoliday(d) { return HOLIDAYS.has(formatDate(d)); }
+function isWorkday(d) { return !isWeekend(d) && !isHoliday(d); }
+
+function networkdays(start, end) {
+  if (!start || !end) return 0;
+  let count = 0;
+  const cur = new Date(start);
+  const endT = end.getTime();
+  while (cur.getTime() <= endT) {
+    if (isWorkday(cur)) count++;
+    cur.setDate(cur.getDate()+1);
+  }
+  return count;
+}
+
+function workdayAdd(start, days) {
+  if (!start || days <= 0) return new Date(start);
+  const cur = new Date(start);
+  let remaining = days;
+  while (remaining > 0) {
+    cur.setDate(cur.getDate()+1);
+    if (isWorkday(cur)) remaining--;
+  }
+  return cur;
+}
+
+// ===========================
+// CALCULATION
+// ===========================
+function calcProject(p) {
+  const st = parseDate(p.type === '計画' ? p.plannedStart : (p.actualStart || p.plannedStart));
+  const ed = parseDate(p.type === '計画' ? p.plannedDelivery : (p.actualDelivery || p.plannedDelivery));
+  if (!st || !ed) return { ...p, designEnd:null, materialEnd:null, processEnd:null, deliveryDate:ed, totalDays:0, progress:0, currentPhase:'-' };
+
+  const dr = (p.designRatio  != null) ? p.designRatio  : settings.designRatio;
+  const mr = (p.materialRatio!= null) ? p.materialRatio: settings.materialRatio;
+  const pr = (p.processRatio != null) ? p.processRatio : settings.processRatio;
+  const total = Math.max(1, networkdays(st, ed));
+  const designEnd   = workdayAdd(st, Math.max(1, Math.round(total * dr)) - 1);
+  const materialEnd = workdayAdd(st, Math.max(1, Math.round(total * (dr + mr))) - 1);
+  const processEnd  = workdayAdd(st, Math.max(1, Math.round(total * (dr + mr + pr))) - 1);
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const cappedToday = today > ed ? ed : today;
+  const elapsed = Math.max(1, networkdays(st, cappedToday));
+  const progress = Math.max(0, Math.min(1, elapsed / total));
+
+  let currentPhase;
+  if (p.actualDelivery && parseDate(p.actualDelivery) <= today) currentPhase = '完了';
+  else if (today <= designEnd)   currentPhase = '設計';
+  else if (today <= materialEnd) currentPhase = '資材';
+  else if (today <= processEnd)  currentPhase = '加工';
+  else                            currentPhase = '組立';
+
+  const startDate = st;
+  return { ...p, startDate, designEnd, materialEnd, processEnd, deliveryDate: ed, totalDays: total, progress, currentPhase };
+}
+
+// ===========================
+// RENDER SUMMARY
+// ===========================
+function renderSummary() {
+  const calced = projects.map(calcProject);
+  const counts = { '設計':0, '資材':0, '加工':0, '組立':0, '完了':0 };
+  calced.forEach(p => { if (counts[p.currentPhase] !== undefined) counts[p.currentPhase]++; });
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="summary-card total">
+      <div class="label">総受注数</div>
+      <div class="value">${projects.length}</div>
+    </div>
+    <div class="summary-card design">
+      <div class="label">設計中</div>
+      <div class="value">${counts['設計']}</div>
+    </div>
+    <div class="summary-card mat">
+      <div class="label">資材手配中</div>
+      <div class="value">${counts['資材']}</div>
+    </div>
+    <div class="summary-card proc">
+      <div class="label">加工中</div>
+      <div class="value">${counts['加工']}</div>
+    </div>
+    <div class="summary-card asm">
+      <div class="label">組立中</div>
+      <div class="value">${counts['組立']}</div>
+    </div>
+  `;
+}
+
+// ===========================
+// RENDER GANTT
+// ===========================
+function renderGantt() {
+  const calced = projects.map(calcProject).filter(p => p.startDate && p.deliveryDate);
+  if (calced.length === 0) {
+    document.getElementById('ganttWrapper').innerHTML = '<div class="empty-state"><div class="icon">📋</div>受注を追加するとガントチャートが表示されます</div>';
+    return;
+  }
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  // 今日から納品日までの範囲を表示（納品日から逆算）
+  let minDate = new Date(today); minDate.setDate(minDate.getDate() - 7);
+  let maxDate = new Date(today); maxDate.setDate(maxDate.getDate() + 60);
+  calced.forEach(p => {
+    if (p.deliveryDate && p.deliveryDate > maxDate) maxDate = new Date(p.deliveryDate);
+  });
+  maxDate.setDate(maxDate.getDate() + 7);
+
+  // Build date array
+  const dates = [];
+  const cur = new Date(minDate);
+  while (cur <= maxDate) { dates.push(new Date(cur)); cur.setDate(cur.getDate()+1); }
+
+  // Month headers
+  const isMobile = window.innerWidth <= 768;
+  const nameW = isMobile ? 140 : 200;
+  let monthHTML = `<th class="col-name" rowspan="2" style="top:0;z-index:3;background:#fff">受注名</th>` +
+                  `<th class="col-progress" rowspan="2" style="top:0;z-index:3;background:#fff;left:${nameW}px">進捗</th>`;
+  let i = 0;
+  while (i < dates.length) {
+    const m = dates[i].getMonth();
+    let j = i;
+    while (j < dates.length && dates[j].getMonth() === m) j++;
+    const label = `${dates[i].getFullYear()}年${m+1}月`;
+    monthHTML += `<th class="gantt-header-month" colspan="${j-i}">${label}</th>`;
+    i = j;
+  }
+
+  // Day headers
+  let dayHTML = '';
+  dates.forEach(d => {
+    const cls = d.getTime() === today.getTime() ? 'today-col' : (isHoliday(d) ? 'holiday' : (isWeekend(d) ? 'weekend' : ''));
+    dayHTML += `<th class="gantt-header-day ${cls}">${d.getDate()}</th>`;
+  });
+
+  // Project rows
+  let rowsHTML = '';
+  calced.forEach(p => {
+    const maxChars = isMobile ? 12 : 20;
+    const hasMemo = p.memoDesign || p.memoMaterial || p.memoProcess || p.memoAssembly || p.memoBiko;
+    const memoAttr = hasMemo
+      ? `onmouseenter="showGanttMemo(event,'${p.id}')" onmouseleave="hideGanttMemo()" onclick="showGanttMemo(event,'${p.id}')"`
+      : '';
+    const memoIcon = hasMemo
+      ? `<span style="color:#FF8000;font-size:10px;font-weight:900;flex-shrink:0;margin-left:3px;line-height:1" title="メモあり">✎</span>`
+      : '';
+    let nameTd = `<td class="col-name" title="${p.name}" ${memoAttr} style="${hasMemo?'cursor:pointer':''}">` +
+      `<div style="display:flex;align-items:center;justify-content:space-between;width:100%">` +
+      `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name.substring(0,maxChars)}${p.name.length>maxChars?'…':''}</span>` +
+      `${memoIcon}</div></td>`;
+    let progressTd = `<td class="col-progress" style="left:${nameW}px">
+      <span class="phase-badge ${p.currentPhase}" style="font-size:9px;padding:1px 5px;margin-bottom:2px;display:inline-block">${p.currentPhase}</span>
+      <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${Math.round(p.progress*100)}%"></div></div>
+      <div class="progress-text">${Math.round(p.progress*100)}%</div>
+    </td>`;
+    let cellsHTML = '';
+    dates.forEach(d => {
+      const dt = d.getTime();
+      const st = p.startDate ? p.startDate.getTime() : null;
+      const de = p.designEnd ? p.designEnd.getTime() : null;
+      const me = p.materialEnd ? p.materialEnd.getTime() : null;
+      const pe = p.processEnd ? p.processEnd.getTime() : null;
+      const ed = p.deliveryDate ? p.deliveryDate.getTime() : null;
+      const isToday = dt === today.getTime();
+
+      let phaseCls = '';
+      if (st !== null && ed !== null && dt >= st && dt <= ed) {
+        if (de !== null && dt <= de)       phaseCls = 'phase-design';
+        else if (me !== null && dt <= me)  phaseCls = 'phase-material';
+        else if (pe !== null && dt <= pe)  phaseCls = 'phase-process';
+        else                                phaseCls = 'phase-assembly';
+      }
+      const wkCls = isHoliday(d) ? 'holiday' : (isWeekend(d) ? 'weekend' : '');
+      const todayCls = isToday ? 'today-col' : '';
+      const rawComment = (p.dateComments || {})[formatDate(d)];
+      const cellComments = rawComment
+        ? (Array.isArray(rawComment) ? rawComment : [rawComment]).filter(Boolean)
+        : [];
+      const commentIcon = cellComments.length > 0
+        ? `<div class="cell-comment-icon"
+             onclick="showDateComments(event,'${p.id}','${formatDate(d)}')"
+             onmouseenter="showDateComments(event,'${p.id}','${formatDate(d)}')"
+             onmouseleave="hideGanttMemo()">💬${cellComments.length > 1 ? `<span class="dc-cnt">${cellComments.length}</span>` : ''}</div>`
+        : '';
+      cellsHTML += `<td class="gantt-cell ${phaseCls} ${wkCls} ${todayCls}">${commentIcon}</td>`;
+    });
+    rowsHTML += `<tr class="gantt-row">${nameTd}${progressTd}${cellsHTML}</tr>`;
+  });
+
+  document.getElementById('ganttWrapper').innerHTML = `
+    <table class="gantt-table">
+      <thead>
+        <tr>${monthHTML}</tr>
+        <tr>${dayHTML}</tr>
+      </thead>
+      <tbody>${rowsHTML}</tbody>
+    </table>
+  `;
+}
+
+// ===========================
+// RENDER PROJECT TABLE
+// ===========================
+function getFilteredSortedProjects() {
+  let list = projects.map(p => ({ p, c: calcProject(p) }));
+
+  // Filter
+  if (tableFilter.name)  list = list.filter(({p}) => p.name.includes(tableFilter.name));
+  if (tableFilter.type)  list = list.filter(({p}) => p.type === tableFilter.type);
+  if (tableFilter.phase) list = list.filter(({c}) => c.currentPhase === tableFilter.phase);
+
+  // Sort
+  const { key, dir } = tableSort;
+  const toT = d => d ? d.getTime() : (dir > 0 ? Infinity : -Infinity);
+  list.sort((a, b) => {
+    let av, bv;
+    switch (key) {
+      case 'name':         av = a.p.name;             bv = b.p.name;           break;
+      case 'type':         av = a.p.type;             bv = b.p.type;           break;
+      case 'amount':       av = Number(a.p.amount)||0; bv = Number(b.p.amount)||0; break;
+      case 'startDate':    av = toT(a.c.startDate);   bv = toT(b.c.startDate); break;
+      case 'deliveryDate': av = toT(a.c.deliveryDate); bv = toT(b.c.deliveryDate); break;
+      case 'designEnd':    av = toT(a.c.designEnd);   bv = toT(b.c.designEnd); break;
+      case 'materialEnd':  av = toT(a.c.materialEnd); bv = toT(b.c.materialEnd); break;
+      case 'processEnd':   av = toT(a.c.processEnd);  bv = toT(b.c.processEnd); break;
+      case 'progress':     av = a.c.progress;         bv = b.c.progress;       break;
+      case 'phase':        av = a.c.currentPhase;     bv = b.c.currentPhase;   break;
+      default:             return 0;
+    }
+    if (av < bv) return -dir;
+    if (av > bv) return  dir;
+    return 0;
+  });
+  return list;
+}
+
+function setSort(key) {
+  if (tableSort.key === key) tableSort.dir *= -1;
+  else tableSort = { key, dir: 1 };
+  renderTable();
+}
+
+function applyTableFilter() {
+  tableFilter.name  = document.getElementById('ft_name').value.trim();
+  tableFilter.type  = document.getElementById('ft_type').value;
+  tableFilter.phase = document.getElementById('ft_phase').value;
+  renderTable();
+}
+
+function resetTableFilter() {
+  tableFilter = { name: '', type: '', phase: '' };
+  document.getElementById('ft_name').value  = '';
+  document.getElementById('ft_type').value  = '';
+  document.getElementById('ft_phase').value = '';
+  renderTable();
+}
+
+function renderTable() {
+  const thead = document.getElementById('projectTableHead');
+  const tbody = document.getElementById('projectTableBody');
+
+  // Header with sort icons
+  const si = (key) => {
+    if (tableSort.key !== key) return '<span class="sort-icon" style="color:#ccc">⇅</span>';
+    return `<span class="sort-icon">${tableSort.dir > 0 ? '▲' : '▼'}</span>`;
+  };
+  const th = (label, key) =>
+    `<th class="sortable" onclick="setSort('${key}')">${label}${si(key)}</th>`;
+
+  thead.innerHTML = `<tr>
+    ${th('受注品名','name')}
+    ${th('分類','type')}
+    ${th('受注金額','amount')}
+    ${th('着手日','startDate')}
+    ${th('【要求】納品日','deliveryDate')}
+    ${th('設計完了','designEnd')}
+    ${th('資材完了','materialEnd')}
+    ${th('加工完了','processEnd')}
+    <th>組立完了</th>
+    ${th('現在工程','phase')}
+    ${th('進捗率','progress')}
+    <th>操作</th>
+  </tr>`;
+
+  const list = getFilteredSortedProjects();
+
+  // Filter count
+  const countEl = document.getElementById('filterCount');
+  if (countEl) {
+    const isFiltered = tableFilter.name || tableFilter.type || tableFilter.phase;
+    countEl.textContent = isFiltered ? `${list.length} / ${projects.length} 件表示` : `${projects.length} 件`;
+  }
+
+  if (projects.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:30px;color:#999">受注がありません</td></tr>';
+    return;
+  }
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:30px;color:#999">条件に一致する受注がありません</td></tr>';
+    return;
+  }
+
+  const fmt = d => d ? formatDateJP(d) : '-';
+  tbody.innerHTML = list.map(({ p, c }) => `<tr>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.name}">${p.name}</td>
+    <td>${p.type}</td>
+    <td class="amount">${p.amount ? '¥'+Number(p.amount).toLocaleString() : '-'}</td>
+    <td>${fmt(c.startDate)}</td>
+    <td>${fmt(c.deliveryDate)}</td>
+    <td>${fmt(c.designEnd)}</td>
+    <td>${fmt(c.materialEnd)}</td>
+    <td>${fmt(c.processEnd)}</td>
+    <td>${fmt(c.deliveryDate)}</td>
+    <td><span class="phase-badge ${c.currentPhase}">${c.currentPhase}</span></td>
+    <td>
+      <div class="progress-bar-wrap" style="width:60px;display:inline-block">
+        <div class="progress-bar-fill" style="width:${Math.round(c.progress*100)}%"></div>
+      </div>
+      <span style="font-size:11px;font-weight:700;margin-left:4px">${Math.round(c.progress*100)}%</span>
+    </td>
+    <td style="white-space:nowrap">
+      ${(p.memoDesign||p.memoMaterial||p.memoProcess||p.memoAssembly||p.memoBiko) ? `<span class="memo-badge" onclick="openEditModal('${p.id}')" title="メモあり">📝 メモ</span> ` : ''}
+      <button class="btn btn-primary btn-sm" onclick="openEditModal('${p.id}')">編集</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">削除</button>
+    </td>
+  </tr>`).join('');
+}
+
+// ===========================
+// MODAL
+// ===========================
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '受注追加';
+  ['f_name','f_amount','f_planned_start','f_planned_delivery','f_actual_start',
+   'f_actual_delivery','f_actual_design','f_actual_material','f_actual_assembly'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('f_order_date').value = formatDate(new Date());
+  document.getElementById('f_type').value = '計画';
+  ['f_r_design','f_r_material','f_r_process','f_r_assembly'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  ['f_memo_design','f_memo_material','f_memo_process','f_memo_assembly','f_memo_biko'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  _editingDateComments = {};
+  renderDateCommentList();
+  document.getElementById('calcPreview').style.display = 'none';
+  clearErrors();
+  document.getElementById('modal').classList.add('open');
+}
+
+function openEditModal(id) {
+  const p = projects.find(x => x.id === id);
+  if (!p) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = '受注編集';
+  document.getElementById('f_name').value = p.name || '';
+  document.getElementById('f_type').value = p.type || '計画';
+  document.getElementById('f_amount').value = p.amount || '';
+  document.getElementById('f_order_date').value = p.orderDate || '';
+  document.getElementById('f_planned_start').value = p.plannedStart || '';
+  document.getElementById('f_planned_delivery').value = p.plannedDelivery || '';
+  document.getElementById('f_actual_start').value = p.actualStart || '';
+  document.getElementById('f_actual_delivery').value = p.actualDelivery || '';
+  document.getElementById('f_actual_design').value = p.actualDesign || '';
+  document.getElementById('f_actual_material').value = p.actualMaterial || '';
+  document.getElementById('f_actual_assembly').value = p.actualAssembly || '';
+  document.getElementById('f_r_design').value   = p.designRatio   != null ? Math.round(p.designRatio   * 100) : '';
+  document.getElementById('f_r_material').value = p.materialRatio != null ? Math.round(p.materialRatio * 100) : '';
+  document.getElementById('f_r_process').value  = p.processRatio  != null ? Math.round(p.processRatio  * 100) : '';
+  updateRatioPreview();
+  document.getElementById('f_memo_design').value   = p.memoDesign   || '';
+  document.getElementById('f_memo_material').value = p.memoMaterial || '';
+  document.getElementById('f_memo_process').value  = p.memoProcess  || '';
+  document.getElementById('f_memo_assembly').value = p.memoAssembly || '';
+  document.getElementById('f_memo_biko').value     = p.memoBiko     || '';
+  _editingDateComments = p.dateComments ? Object.assign({}, p.dateComments) : {};
+  renderDateCommentList();
+  clearErrors();
+  updatePreview();
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+function updatePreview() {
+  const type = document.getElementById('f_type').value;
+  const ps = document.getElementById('f_planned_start').value;
+  const pd = document.getElementById('f_planned_delivery').value;
+  const as = document.getElementById('f_actual_start').value;
+  const startStr = type === '計画' ? ps : (as || ps);
+  const endStr = type === '計画' ? pd : (document.getElementById('f_actual_delivery').value || pd);
+  const start = parseDate(startStr), end = parseDate(endStr);
+  if (!start || !end) { document.getElementById('calcPreview').style.display = 'none'; return; }
+
+  const getRatio = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v/100; };
+  const dummy = { type, plannedStart:ps, plannedDelivery:pd, actualStart:as, actualDelivery:document.getElementById('f_actual_delivery').value,
+    designRatio: getRatio('f_r_design'), materialRatio: getRatio('f_r_material'), processRatio: getRatio('f_r_process') };
+  const c = calcProject(dummy);
+  document.getElementById('calcPreview').style.display = 'block';
+  document.getElementById('pv_days').textContent = c.totalDays + '日';
+  document.getElementById('pv_design').textContent = formatDateJP(c.designEnd);
+  document.getElementById('pv_material').textContent = formatDateJP(c.materialEnd);
+  document.getElementById('pv_process').textContent = formatDateJP(c.processEnd);
+  document.getElementById('pv_phase').textContent = c.currentPhase;
+  document.getElementById('pv_progress').textContent = Math.round(c.progress*100) + '%';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ===========================
+// DATE COMMENTS
+// ===========================
+let _editingDateComments = {};
+
+function getCommentArray(val) {
+  if (!val) return [];
+  return Array.isArray(val) ? val.filter(Boolean) : (val ? [val] : []);
+}
+
+function renderDateCommentList() {
+  const container = document.getElementById('dateCommentList');
+  const entries = Object.entries(_editingDateComments).sort((a, b) => a[0].localeCompare(b[0]));
+  const rows = [];
+  entries.forEach(([date, val]) => {
+    const comments = getCommentArray(val);
+    comments.forEach((text, idx) => {
+      rows.push(`<div class="dc-row">
+        <span class="dc-date">${formatDateJP(parseDate(date))}</span>
+        <span class="dc-text" title="${escHtml(text)}">${escHtml(text)}</span>
+        <button class="dc-del" onclick="removeDateComment('${date}',${idx})">✕</button>
+      </div>`);
+    });
+  });
+  container.innerHTML = rows.length
+    ? rows.join('')
+    : '<div style="color:var(--c-muted);font-size:11px;padding:4px 0">コメントはありません</div>';
+}
+
+function addDateComment() {
+  const date = document.getElementById('f_comment_date').value;
+  const text = document.getElementById('f_comment_text').value.trim();
+  if (!date || !text) return;
+  const existing = getCommentArray(_editingDateComments[date]);
+  existing.push(text);
+  _editingDateComments[date] = existing;
+  renderDateCommentList();
+  document.getElementById('f_comment_date').value = '';
+  document.getElementById('f_comment_text').value = '';
+}
+
+function removeDateComment(date, idx) {
+  const arr = getCommentArray(_editingDateComments[date]);
+  arr.splice(idx, 1);
+  if (arr.length === 0) delete _editingDateComments[date];
+  else _editingDateComments[date] = arr;
+  renderDateCommentList();
+}
+
+function showDateComments(e, pid, dateStr) {
+  const p = projects.find(x => x.id === pid);
+  if (!p) return;
+  const comments = getCommentArray((p.dateComments || {})[dateStr]);
+  if (!comments.length) return;
+  const tip = document.getElementById('ganttTip');
+  const label = formatDateJP(parseDate(dateStr));
+  tip.innerHTML = `<div style="font-weight:700;font-size:11px;color:#555;margin-bottom:6px">💬 ${label} のコメント</div>` +
+    comments.map((c, i) =>
+      `<div style="padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:12px;color:#333">${i+1}. ${escHtml(c)}</div>`
+    ).join('');
+  const rect = e.currentTarget.getBoundingClientRect();
+  const tipW = 260;
+  let left = rect.right + 8;
+  if (left + tipW > window.innerWidth) left = rect.left - tipW - 8;
+  tip.style.left = Math.max(4, left) + 'px';
+  tip.style.top  = rect.top + 'px';
+  tip.style.display = 'block';
+  if (window.matchMedia('(pointer: coarse)').matches) {
+    clearTimeout(_ganttMemoTimer);
+    _ganttMemoTimer = setTimeout(hideGanttMemo, 3000);
+  }
+}
+
+function showCellComment(e, text) {
+  const tip = document.getElementById('ganttTip');
+  tip.innerHTML = `<div style="font-weight:700;font-size:11px;color:#555;margin-bottom:4px">💬 コメント</div><div style="color:#333;font-size:12px">${escHtml(text)}</div>`;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const tipW = 220;
+  let left = rect.right + 8;
+  if (left + tipW > window.innerWidth) left = rect.left - tipW - 8;
+  tip.style.left = Math.max(4, left) + 'px';
+  tip.style.top  = rect.top + 'px';
+  tip.style.display = 'block';
+  if (window.matchMedia('(pointer: coarse)').matches) {
+    clearTimeout(_ganttMemoTimer);
+    _ganttMemoTimer = setTimeout(hideGanttMemo, 3000);
+  }
+}
+
+let _ganttMemoTimer = null;
+
+function showGanttMemo(e, pid) {
+  const p = projects.find(x => x.id === pid);
+  if (!p) return;
+  const phases = [
+    { label:'設計', color:'#BDD7EE', text: p.memoDesign },
+    { label:'資材', color:'#C6EFCE', text: p.memoMaterial },
+    { label:'加工', color:'#FFEB9C', text: p.memoProcess },
+    { label:'組立', color:'#FFC7CE', text: p.memoAssembly },
+    { label:'備考', color:'#FFE0CC', text: p.memoBiko },
+  ].filter(x => x.text);
+  if (!phases.length) return;
+  const tip = document.getElementById('ganttTip');
+  tip.innerHTML = '<div style="font-weight:700;font-size:11px;color:#555;margin-bottom:6px">📝 工程メモ</div>' +
+    phases.map(m =>
+      `<div style="padding:4px 0;border-bottom:1px solid #f0f0f0;last-child:border:none">` +
+      `<span style="background:${m.color};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">${m.label}</span>` +
+      `<span style="color:#333">${escHtml(m.text)}</span></div>`
+    ).join('');
+  const rect = e.currentTarget.getBoundingClientRect();
+  const tipW = 280;
+  let left = rect.right + 8;
+  if (left + tipW > window.innerWidth) left = rect.left - tipW - 8;
+  tip.style.left = Math.max(4, left) + 'px';
+  tip.style.top  = rect.top + 'px';
+  tip.style.display = 'block';
+
+  // スマホ（タッチ）の場合は3秒後に自動非表示
+  if (window.matchMedia('(pointer: coarse)').matches) {
+    clearTimeout(_ganttMemoTimer);
+    _ganttMemoTimer = setTimeout(hideGanttMemo, 3000);
+  }
+}
+
+function hideGanttMemo() {
+  clearTimeout(_ganttMemoTimer);
+  document.getElementById('ganttTip').style.display = 'none';
+}
+
+function updateRatioPreview() {
+  const d = parseFloat(document.getElementById('f_r_design').value) || 0;
+  const m = parseFloat(document.getElementById('f_r_material').value) || 0;
+  const p = parseFloat(document.getElementById('f_r_process').value) || 0;
+  const a = Math.max(0, 100 - d - m - p);
+  document.getElementById('f_r_assembly').value = (d || m || p) ? a : '';
+}
+
+function clearErrors() {
+  ['fg_name','fg_planned_start','fg_planned_delivery'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('has-error');
+  });
+  ['err_name','err_start','err_delivery'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+}
+
+function showFieldError(fgId, errId) {
+  const fg = document.getElementById(fgId);
+  const err = document.getElementById(errId);
+  if (fg) fg.classList.add('has-error');
+  if (err) err.style.display = 'block';
+}
+
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.classList.remove('show'); }, 2500);
+}
+
+function saveProject() {
+  clearErrors();
+  const name = document.getElementById('f_name').value.trim();
+  const ps   = document.getElementById('f_planned_start').value;
+  const pd   = document.getElementById('f_planned_delivery').value;
+
+  let hasError = false;
+  if (!name)  { showFieldError('fg_name', 'err_name'); hasError = true; }
+  if (!ps)    { showFieldError('fg_planned_start', 'err_start'); hasError = true; }
+  if (!pd)    { showFieldError('fg_planned_delivery', 'err_delivery'); hasError = true; }
+  if (hasError) return;
+
+  const proj = {
+    id: editingId || Date.now().toString(),
+    name,
+    type: document.getElementById('f_type').value,
+    amount: document.getElementById('f_amount').value,
+    orderDate: document.getElementById('f_order_date').value,
+    plannedStart: ps,
+    plannedDelivery: pd,
+    actualStart: document.getElementById('f_actual_start').value,
+    actualDelivery: document.getElementById('f_actual_delivery').value,
+    actualDesign: document.getElementById('f_actual_design').value,
+    actualMaterial: document.getElementById('f_actual_material').value,
+    actualAssembly: document.getElementById('f_actual_assembly').value,
+    designRatio:   (() => { const v = parseFloat(document.getElementById('f_r_design').value);   return isNaN(v) ? null : v/100; })(),
+    materialRatio: (() => { const v = parseFloat(document.getElementById('f_r_material').value); return isNaN(v) ? null : v/100; })(),
+    processRatio:  (() => { const v = parseFloat(document.getElementById('f_r_process').value);  return isNaN(v) ? null : v/100; })(),
+    memoDesign:   document.getElementById('f_memo_design').value.trim(),
+    memoMaterial: document.getElementById('f_memo_material').value.trim(),
+    memoProcess:  document.getElementById('f_memo_process').value.trim(),
+    memoAssembly: document.getElementById('f_memo_assembly').value.trim(),
+    memoBiko:     document.getElementById('f_memo_biko').value.trim(),
+    dateComments: Object.assign({}, _editingDateComments),
+  };
+
+  if (editingId) {
+    const idx = projects.findIndex(p => p.id === editingId);
+    if (idx >= 0) projects[idx] = proj;
+    else projects.push(proj);
+  } else {
+    projects.push(proj);
+  }
+
+  try { saveData(); } catch(e) { console.warn('保存エラー:', e); }
+  renderAll();
+  closeModal();
+  showToast(editingId ? '受注を更新しました' : '受注を追加しました');
+}
+
+function deleteProject(id) {
+  const p = projects.find(x => x.id === id);
+  if (!p) return;
+  const trashed = { ...p, trashedAt: new Date().toISOString() };
+  trashedProjects.unshift(trashed);
+  saveTrash();
+  if (db) {
+    db.ref('projects/' + id).remove().catch(e => console.warn('削除エラー:', e));
+  } else {
+    projects = projects.filter(x => x.id !== id);
+    saveData();
+    renderAll();
+  }
+  updateTrashBadge();
+  showToast('ゴミ箱に移しました', 'error');
+}
+
+function restoreProject(id) {
+  const idx = trashedProjects.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const p = { ...trashedProjects[idx] };
+  delete p.trashedAt;
+  trashedProjects.splice(idx, 1);
+  saveTrash();
+  if (db) {
+    db.ref('projects/' + p.id).set(p).catch(e => console.warn('復旧エラー:', e));
+  } else {
+    projects.push(p);
+    saveData();
+    renderAll();
+  }
+  updateTrashBadge();
+  renderTrash();
+  showToast('受注を復旧しました');
+}
+
+function permanentDelete(id) {
+  if (!confirm('完全に削除します。元に戻せません。よろしいですか？')) return;
+  trashedProjects = trashedProjects.filter(x => x.id !== id);
+  saveTrash();
+  updateTrashBadge();
+  renderTrash();
+  showToast('完全に削除しました', 'error');
+}
+
+function emptyTrash() {
+  if (!trashedProjects.length) return;
+  if (!confirm(`ゴミ箱内の ${trashedProjects.length} 件をすべて完全削除します。よろしいですか？`)) return;
+  trashedProjects = [];
+  saveTrash();
+  updateTrashBadge();
+  renderTrash();
+  showToast('ゴミ箱を空にしました', 'error');
+}
+
+function toggleTrash() {
+  const s = document.getElementById('trashSection');
+  s.style.display = s.style.display === 'none' ? 'block' : 'none';
+  if (s.style.display === 'block') renderTrash();
+}
+
+function updateTrashBadge() {
+  const badge = document.getElementById('trashBadge');
+  if (trashedProjects.length > 0) {
+    badge.textContent = trashedProjects.length;
+    badge.style.display = 'inline-flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function renderTrash() {
+  const el = document.getElementById('trashContent');
+  if (!el) return;
+  if (trashedProjects.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">🗑</div>ゴミ箱は空です</div>';
+    return;
+  }
+  el.innerHTML = `<table class="trash-table">
+    <thead><tr>
+      <th>受注品名</th><th>分類</th><th>着手予定日</th><th>【要求】納品日</th><th>削除日時</th><th>操作</th>
+    </tr></thead>
+    <tbody>
+      ${trashedProjects.map(p => {
+        const d = new Date(p.trashedAt);
+        const dateStr = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+        return `<tr>
+          <td style="font-weight:600">${p.name}</td>
+          <td>${p.type}</td>
+          <td>${p.plannedStart || '-'}</td>
+          <td>${p.plannedDelivery || '-'}</td>
+          <td class="trash-date">${dateStr}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-success btn-sm" onclick="restoreProject('${p.id}')">↩ 復旧</button>
+            <button class="btn btn-danger btn-sm" onclick="permanentDelete('${p.id}')">完全削除</button>
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+function saveTrash() {
+  try { localStorage.setItem('wf_trash', JSON.stringify(trashedProjects)); } catch {}
+  if (db) {
+    const obj = {};
+    trashedProjects.forEach(p => { obj[p.id] = p; });
+    db.ref('trash').set(Object.keys(obj).length ? obj : null).catch(() => {});
+  }
+}
+
+function loadTrash() {
+  try {
+    const t = JSON.parse(localStorage.getItem('wf_trash') || '[]');
+    if (Array.isArray(t)) trashedProjects = t;
+  } catch {}
+  updateTrashBadge();
+}
+
+// ===========================
+// SETTINGS
+// ===========================
+function toggleSettings() {
+  const s = document.getElementById('settingsSection');
+  s.style.display = s.style.display === 'none' ? 'block' : 'none';
+}
+
+function saveSettings() {
+  settings.designRatio   = parseFloat(document.getElementById('s_design').value)   || 0.20;
+  settings.materialRatio = parseFloat(document.getElementById('s_material').value)  || 0.25;
+  settings.processRatio  = parseFloat(document.getElementById('s_process').value)   || 0.35;
+  settings.assemblyRatio = parseFloat(document.getElementById('s_assembly').value)  || 0.20;
+  localStorage.setItem('wf_settings', JSON.stringify(settings));
+  renderAll();
+}
+
+function renderHolidayList() {
+  const sorted = [...holidayList].sort();
+  document.getElementById('holidayList').innerHTML = sorted.map(d => `
+    <span style="display:inline-flex;align-items:center;gap:4px;background:#f0f4f8;border-radius:12px;padding:3px 10px;font-size:11px">
+      ${d}
+      <button onclick="removeHoliday('${d}')" style="background:none;border:none;cursor:pointer;color:#e74c3c;font-size:13px;line-height:1;padding:0">✕</button>
+    </span>
+  `).join('');
+}
+
+function addHoliday() {
+  const val = document.getElementById('s_holiday_input').value;
+  if (!val) return;
+  if (!holidayList.includes(val)) {
+    holidayList.push(val);
+    HOLIDAYS = new Set(holidayList);
+    localStorage.setItem('wf_holidays', JSON.stringify(holidayList));
+    renderHolidayList();
+    renderAll();
+  }
+  document.getElementById('s_holiday_input').value = '';
+}
+
+function removeHoliday(d) {
+  holidayList = holidayList.filter(x => x !== d);
+  HOLIDAYS = new Set(holidayList);
+  localStorage.setItem('wf_holidays', JSON.stringify(holidayList));
+  renderHolidayList();
+  renderAll();
+}
+
+// ===========================
+// PERSISTENCE
+// ===========================
+function saveData() {
+  if (db) {
+    const obj = {};
+    projects.forEach(p => { obj[p.id] = p; });
+    db.ref('projects').set(obj).catch(e => console.warn('Firebase保存エラー:', e));
+  } else {
+    try { localStorage.setItem('wf_projects', JSON.stringify(projects)); } catch {}
+  }
+}
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('wf_settings') || '{}');
+    Object.assign(settings, s);
+    document.getElementById('s_design').value   = settings.designRatio;
+    document.getElementById('s_material').value = settings.materialRatio;
+    document.getElementById('s_process').value  = settings.processRatio;
+    document.getElementById('s_assembly').value = settings.assemblyRatio;
+  } catch {}
+  try {
+    const h = JSON.parse(localStorage.getItem('wf_holidays') || 'null');
+    if (Array.isArray(h)) {
+      holidayList = h;
+      HOLIDAYS = new Set(holidayList);
+    }
+  } catch {}
+  renderHolidayList();
+}
+
+// ===========================
+// EXPORT (CSV)
+// ===========================
+function exportData() {
+  const calced = projects.map(calcProject);
+  const headers = ['受注品名','分類','受注金額','着手日','【要求】納品日','設計完了予定','資材完了予定','加工完了予定','現在工程','進捗率'];
+  const rows = calced.map(p => [
+    `"${p.name}"`, p.type, p.amount || '',
+    formatDate(p.startDate), formatDate(p.deliveryDate),
+    formatDate(p.designEnd), formatDate(p.materialEnd), formatDate(p.processEnd),
+    p.currentPhase, Math.round(p.progress*100)+'%'
+  ]);
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'}));
+  a.download = `工程管理_${formatDate(new Date())}.csv`;
+  a.click();
+}
+
+// ===========================
+// INIT
+// ===========================
+function renderAll() {
+  renderSummary();
+  renderGantt();
+  renderTable();
+}
+
+function init() {
+  const today = new Date();
+  document.getElementById('todayLabel').textContent =
+    `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日（${'日月火水木金土'[today.getDay()]}）`;
+  loadSettings();
+  loadTrash();
+
+  if (db) {
+    // Firebase リアルタイム同期：データが変わるたびに全クライアントが自動更新
+    db.ref('projects').on('value', snapshot => {
+      const data = snapshot.val();
+      projects = data ? Object.values(data).filter(Boolean) : [];
+      renderAll();
+    }, err => {
+      console.error('Firebase読込エラー:', err);
+      showToast('データの読込に失敗しました', 'error');
+    });
+  } else {
+    // Firebase未設定 → localStorageで動作
+    try { projects = JSON.parse(localStorage.getItem('wf_projects') || '[]'); } catch { projects = []; }
+    if (projects.length === 0) {
+      const t = new Date(); t.setHours(0,0,0,0);
+      const fmt = d => { const x=new Date(d); x.setHours(0,0,0,0); return formatDate(x); };
+      const s = new Date(t); s.setDate(s.getDate()-30);
+      const e = new Date(t); e.setDate(e.getDate()+240);
+      projects = [{
+        id: '1', name: '神山商事 ３山角スパン156成形機（サンプル）', type: '計画',
+        amount: 30000000, orderDate: fmt(new Date(t.getTime()-35*86400000)),
+        plannedStart: fmt(s), plannedDelivery: fmt(e),
+        actualStart: fmt(new Date(s.getTime()+14*86400000)),
+        actualDelivery: '', actualDesign:'', actualMaterial:'', actualAssembly:''
+      }];
+      try { localStorage.setItem('wf_projects', JSON.stringify(projects)); } catch {}
+    }
+    renderAll();
+  }
+}
+
+// Close modal on overlay click
+document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
+
+// 画面サイズ変更（スマホ回転など）で再描画
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { renderGantt(); }, 200);
+});
+
+init();
+</script>
+</body>
+</html>
