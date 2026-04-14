@@ -160,18 +160,34 @@
   .dc-date { font-weight: 700; color: #2c6fad; min-width: 44px; flex-shrink: 0; }
   .dc-text { flex: 1; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dc-del  { background: none; border: none; cursor: pointer; color: #e74c3c; font-size: 13px; padding: 0; flex-shrink: 0; line-height: 1; }
-  /* Gantt cell comment dot */
+  /* Gantt cell tag comment */
   .gantt-cell { position: relative; }
-  .cell-comment-icon {
-    position: absolute; top: 2px; left: 2px;
-    font-size: 9px; line-height: 1; cursor: pointer; z-index: 3;
-    display: flex; align-items: center; gap: 1px;
+  .cell-tag {
+    position: absolute; top: 3px; left: 2px;
+    display: inline-flex; align-items: center;
+    background: #FFE066; color: #222;
+    font-size: 8px; font-weight: 700; line-height: 1;
+    padding: 2px 5px 2px 8px;
+    border-radius: 0 3px 3px 0;
+    white-space: nowrap; overflow: visible;
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+    z-index: 3;
   }
-  .dc-cnt {
-    display: inline-flex; align-items: center; justify-content: center;
-    background: #e74c3c; color: #fff; border-radius: 50%;
-    width: 10px; height: 10px; font-size: 7px; font-weight: 700;
-    vertical-align: top; flex-shrink: 0;
+  .cell-tag::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 6px;
+    background: #fff;
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+    opacity: 0.35;
+  }
+  .cell-tag::after {
+    content: '';
+    position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 3px;
+    background: #fff;
+    border-radius: 50%;
+    opacity: 0.8;
   }
   .form-section-title { font-size: 12px; font-weight: 700; color: var(--c-muted); margin: 14px 0 8px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--c-border); padding-bottom: 4px; }
   .calc-preview { background: #f0f4f8; border-radius: 6px; padding: 12px 14px; margin-top: 14px; font-size: 12px; }
@@ -755,7 +771,7 @@ function renderSummary() {
 // RENDER GANTT
 // ===========================
 function renderGantt() {
-  const calced = projects.map(calcProject).filter(p => p.startDate && p.deliveryDate);
+  const calced = getFilteredSortedProjects().map(({c}) => c).filter(p => p.startDate && p.deliveryDate);
   if (calced.length === 0) {
     document.getElementById('ganttWrapper').innerHTML = '<div class="empty-state"><div class="icon">📋</div>受注を追加するとガントチャートが表示されます</div>';
     return;
@@ -778,7 +794,7 @@ function renderGantt() {
   // Month headers
   const isMobile = window.innerWidth <= 768;
   const nameW = isMobile ? 140 : 200;
-  let monthHTML = `<th class="col-name" rowspan="2" style="top:0;z-index:3;background:#fff">受注名</th>` +
+  let monthHTML = `<th class="col-name" rowspan="2" style="top:0;z-index:3;background:#fff">受注品名</th>` +
                   `<th class="col-progress" rowspan="2" style="top:0;z-index:3;background:#fff;left:${nameW}px">進捗</th>`;
   let i = 0;
   while (i < dates.length) {
@@ -802,13 +818,15 @@ function renderGantt() {
   calced.forEach(p => {
     const maxChars = isMobile ? 12 : 20;
     const hasMemo = p.memoDesign || p.memoMaterial || p.memoProcess || p.memoAssembly || p.memoBiko;
-    const memoAttr = hasMemo
-      ? `onmouseenter="showGanttMemo(event,'${p.id}')" onmouseleave="hideGanttMemo()" onclick="showGanttMemo(event,'${p.id}')"`
-      : '';
     const memoIcon = hasMemo
-      ? `<span style="color:#FF8000;font-size:10px;font-weight:900;flex-shrink:0;margin-left:3px;line-height:1" title="メモあり">✎</span>`
+      ? `<span
+           style="color:#FF8000;font-size:10px;font-weight:900;flex-shrink:0;margin-left:3px;line-height:1;cursor:pointer"
+           title="メモあり"
+           onmouseenter="showGanttMemo(event,'${p.id}')"
+           onmouseleave="hideGanttMemo()"
+           onclick="event.stopPropagation();showGanttMemo(event,'${p.id}')">✎</span>`
       : '';
-    let nameTd = `<td class="col-name" title="${p.name}" ${memoAttr} style="${hasMemo?'cursor:pointer':''}">` +
+    let nameTd = `<td class="col-name" title="${p.name}" style="cursor:pointer" onclick="openEditModal('${p.id}')">` +
       `<div style="display:flex;align-items:center;justify-content:space-between;width:100%">` +
       `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name.substring(0,maxChars)}${p.name.length>maxChars?'…':''}</span>` +
       `${memoIcon}</div></td>`;
@@ -840,13 +858,10 @@ function renderGantt() {
       const cellComments = rawComment
         ? (Array.isArray(rawComment) ? rawComment : [rawComment]).filter(Boolean)
         : [];
-      const commentIcon = cellComments.length > 0
-        ? `<div class="cell-comment-icon"
-             onclick="showDateComments(event,'${p.id}','${formatDate(d)}')"
-             onmouseenter="showDateComments(event,'${p.id}','${formatDate(d)}')"
-             onmouseleave="hideGanttMemo()">💬${cellComments.length > 1 ? `<span class="dc-cnt">${cellComments.length}</span>` : ''}</div>`
+      const commentText = cellComments.length > 0
+        ? `<div class="cell-tag">${cellComments.join(' / ')}</div>`
         : '';
-      cellsHTML += `<td class="gantt-cell ${phaseCls} ${wkCls} ${todayCls}">${commentIcon}</td>`;
+      cellsHTML += `<td class="gantt-cell ${phaseCls} ${wkCls} ${todayCls}">${commentText}</td>`;
     });
     rowsHTML += `<tr class="gantt-row">${nameTd}${progressTd}${cellsHTML}</tr>`;
   });
@@ -902,6 +917,7 @@ function setSort(key) {
   if (tableSort.key === key) tableSort.dir *= -1;
   else tableSort = { key, dir: 1 };
   renderTable();
+  renderGantt();
 }
 
 function applyTableFilter() {
@@ -909,6 +925,7 @@ function applyTableFilter() {
   tableFilter.type  = document.getElementById('ft_type').value;
   tableFilter.phase = document.getElementById('ft_phase').value;
   renderTable();
+  renderGantt();
 }
 
 function resetTableFilter() {
@@ -917,6 +934,7 @@ function resetTableFilter() {
   document.getElementById('ft_type').value  = '';
   document.getElementById('ft_phase').value = '';
   renderTable();
+  renderGantt();
 }
 
 function renderTable() {
