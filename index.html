@@ -909,12 +909,26 @@ function setupGanttStickyHeader() {
 
     // thead がビューポート上端より上に消えて、かつ wrapper がまだ見えている間表示
     if (th.bottom <= 0 && wr.bottom > 40) {
+      // tbody の最初の行から各セルの実測幅を取得し colgroup で列幅を固定
+      // → これにより「今日」赤線列がずれなくなる
+      const firstRow = tbl.querySelector('tbody tr');
+      let colgroupHTML = '';
+      if (firstRow) {
+        const cells = firstRow.querySelectorAll('td');
+        colgroupHTML = '<colgroup>' +
+          Array.from(cells).map(c =>
+            `<col style="width:${c.getBoundingClientRect().width}px">`
+          ).join('') +
+          '</colgroup>';
+      }
+
       floater.style.display = 'block';
       floater.style.left    = wr.left + 'px';
       floater.style.width   = wr.width + 'px';
-      floater.innerHTML     =
+      floater.innerHTML =
         `<div style="overflow:hidden">` +
         `<table class="gantt-table" style="width:${tbl.offsetWidth}px;transform:translateX(${-wrapper.scrollLeft}px)">` +
+        colgroupHTML +
         thead.outerHTML +
         `</table></div>`;
     } else {
