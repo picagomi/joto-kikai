@@ -900,37 +900,35 @@ function renderGantt() {
 // ===========================
 let _ganttMinDate = null;
 
+function _ganttDayCells() {
+  // thead の2行目（日付行）の th のみ取得
+  // col-name・col-progress は rowspan=2 で1行目にあるためここには含まれない
+  const wrapper = document.getElementById('ganttWrapper');
+  const dayRow = wrapper && wrapper.querySelector('thead tr:last-child');
+  return dayRow ? Array.from(dayRow.querySelectorAll('th')) : [];
+}
+
 function ganttScrollToToday() {
   const wrapper = document.getElementById('ganttWrapper');
   if (!wrapper) return;
 
-  // 「今日」クラスが付いた th セルを直接探して offsetLeft を取得
-  const todayTh = wrapper.querySelector('thead th.today-col');
-  if (todayTh) {
-    // 今日セルの左端 - ラッパー幅の1/3 を引いて画面左寄りに表示
-    const targetX = todayTh.offsetLeft - Math.round(wrapper.clientWidth / 3);
-    wrapper.scrollLeft = Math.max(0, targetX);
-    return;
-  }
+  const dayCells = _ganttDayCells();
+  const todayIdx = dayCells.findIndex(th => th.classList.contains('today-col'));
+  if (todayIdx < 0) return;
 
-  // today-col が見つからない場合は minDate からの日数で計算（フォールバック）
-  if (!_ganttMinDate) return;
-  const today = new Date(); today.setHours(0,0,0,0);
-  const firstDateTh = wrapper.querySelector('thead tr:last-child th:first-child');
-  const cellW = firstDateTh ? firstDateTh.offsetWidth || 21 : 21;
-  const leftFixedW = wrapper.querySelector('thead th.col-name')
-    ? (wrapper.querySelector('thead th.col-name').offsetWidth +
-       wrapper.querySelector('thead th.col-progress').offsetWidth) : 291;
-  const diffDays = Math.round((today - _ganttMinDate) / 86400000);
-  wrapper.scrollLeft = Math.max(0, leftFixedW + diffDays * cellW - Math.round(wrapper.clientWidth / 3));
+  // getBoundingClientRect で実測幅を取得（モバイル・PC 両対応）
+  const cellW = dayCells[0].getBoundingClientRect().width || 21;
+
+  // 今日の7日前がスクロール可視域の左端に来るよう設定
+  // → (todayIdx - 7) * cellW がスクロール量（固定列幅に依存しない計算）
+  wrapper.scrollLeft = Math.max(0, (todayIdx - 7) * cellW);
 }
 
 function ganttScroll(days) {
   const wrapper = document.getElementById('ganttWrapper');
   if (!wrapper) return;
-  // 実際のセル幅を DOM から取得
-  const firstDateTh = wrapper.querySelector('thead tr:last-child th:not(.col-name):not(.col-progress)');
-  const cellW = firstDateTh ? firstDateTh.offsetWidth || 21 : 21;
+  const dayCells = _ganttDayCells();
+  const cellW = dayCells[0] ? dayCells[0].getBoundingClientRect().width : 21;
   wrapper.scrollBy({ left: days * cellW, behavior: 'smooth' });
 }
 
