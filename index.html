@@ -897,25 +897,38 @@ function renderGantt() {
 // ===========================
 let _ganttMinDate = null;
 
-// 1日あたりのセル幅(px) — CSS: width:20px + border 1px = 21px
-const GANTT_CELL_W = 21;
-// 左固定列幅(受注品名200 + 進捗90 + 両端border)
-const GANTT_LEFT_W = 291;
-
 function ganttScrollToToday() {
   const wrapper = document.getElementById('ganttWrapper');
-  if (!wrapper || !_ganttMinDate) return;
+  if (!wrapper) return;
+
+  // 「今日」クラスが付いた th セルを直接探して offsetLeft を取得
+  const todayTh = wrapper.querySelector('thead th.today-col');
+  if (todayTh) {
+    // 今日セルの左端 - ラッパー幅の1/3 を引いて画面左寄りに表示
+    const targetX = todayTh.offsetLeft - Math.round(wrapper.clientWidth / 3);
+    wrapper.scrollLeft = Math.max(0, targetX);
+    return;
+  }
+
+  // today-col が見つからない場合は minDate からの日数で計算（フォールバック）
+  if (!_ganttMinDate) return;
   const today = new Date(); today.setHours(0,0,0,0);
+  const firstDateTh = wrapper.querySelector('thead tr:last-child th:first-child');
+  const cellW = firstDateTh ? firstDateTh.offsetWidth || 21 : 21;
+  const leftFixedW = wrapper.querySelector('thead th.col-name')
+    ? (wrapper.querySelector('thead th.col-name').offsetWidth +
+       wrapper.querySelector('thead th.col-progress').offsetWidth) : 291;
   const diffDays = Math.round((today - _ganttMinDate) / 86400000);
-  // 今日列の左端 - 少し余白を加えて中央寄りに
-  const targetX = GANTT_LEFT_W + diffDays * GANTT_CELL_W - 60;
-  wrapper.scrollLeft = Math.max(0, targetX);
+  wrapper.scrollLeft = Math.max(0, leftFixedW + diffDays * cellW - Math.round(wrapper.clientWidth / 3));
 }
 
 function ganttScroll(days) {
   const wrapper = document.getElementById('ganttWrapper');
   if (!wrapper) return;
-  wrapper.scrollBy({ left: days * GANTT_CELL_W, behavior: 'smooth' });
+  // 実際のセル幅を DOM から取得
+  const firstDateTh = wrapper.querySelector('thead tr:last-child th:not(.col-name):not(.col-progress)');
+  const cellW = firstDateTh ? firstDateTh.offsetWidth || 21 : 21;
+  wrapper.scrollBy({ left: days * cellW, behavior: 'smooth' });
 }
 
 // ===========================
