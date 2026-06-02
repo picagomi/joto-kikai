@@ -406,12 +406,19 @@
   <div class="section">
     <div class="section-header">
       <h2>📊 ガントチャート</h2>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#BDD7EE"></div>設計</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#C6EFCE"></div>資材</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#FFEB9C"></div>加工</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#FFC7CE"></div>組立</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#FF4444;width:4px;border-radius:2px"></div>今日</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#BDD7EE"></div>設計</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#C6EFCE"></div>資材</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#FFEB9C"></div>加工</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#FFC7CE"></div>組立</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#FF4444;width:4px;border-radius:2px"></div>今日</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" style="background:#e8edf3;color:#333" onclick="ganttScroll(-30)" title="1ヶ月前へ">◀ 1ヶ月前</button>
+          <button class="btn btn-sm" style="background:#2c6fad;color:#fff" onclick="ganttScrollToToday()" title="今日へ移動">今日へ</button>
+          <button class="btn btn-sm" style="background:#e8edf3;color:#333" onclick="ganttScroll(30)" title="1ヶ月後へ">1ヶ月後 ▶</button>
+        </div>
       </div>
     </div>
     <div class="gantt-wrapper" id="ganttWrapper">
@@ -780,13 +787,15 @@ function renderGantt() {
   }
 
   const today = new Date(); today.setHours(0,0,0,0);
-  // 今日から納品日までの範囲を表示（納品日から逆算）
-  let minDate = new Date(today); minDate.setDate(minDate.getDate() - 7);
+  // 全案件の最古着手日〜最遅納品日＋バッファで範囲を決定
+  let minDate = new Date(today); minDate.setDate(minDate.getDate() - 30);
   let maxDate = new Date(today); maxDate.setDate(maxDate.getDate() + 180);
   calced.forEach(p => {
+    if (p.startDate && p.startDate < minDate) minDate = new Date(p.startDate);
     if (p.deliveryDate && p.deliveryDate > maxDate) maxDate = new Date(p.deliveryDate);
   });
-  maxDate.setDate(maxDate.getDate() + 7);
+  minDate.setDate(minDate.getDate() - 7);  // 左端バッファ
+  maxDate.setDate(maxDate.getDate() + 7);  // 右端バッファ
 
   // Build date array
   const dates = [];
@@ -877,7 +886,36 @@ function renderGantt() {
       <tbody>${rowsHTML}</tbody>
     </table>
   `;
+  // 今日列へ自動スクロール（描画完了後）
+  _ganttMinDate = minDate;
+  requestAnimationFrame(ganttScrollToToday);
   setupGanttStickyHeader();
+}
+
+// ===========================
+// GANTT SCROLL HELPERS
+// ===========================
+let _ganttMinDate = null;
+
+// 1日あたりのセル幅(px) — CSS: width:20px + border 1px = 21px
+const GANTT_CELL_W = 21;
+// 左固定列幅(受注品名200 + 進捗90 + 両端border)
+const GANTT_LEFT_W = 291;
+
+function ganttScrollToToday() {
+  const wrapper = document.getElementById('ganttWrapper');
+  if (!wrapper || !_ganttMinDate) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diffDays = Math.round((today - _ganttMinDate) / 86400000);
+  // 今日列の左端 - 少し余白を加えて中央寄りに
+  const targetX = GANTT_LEFT_W + diffDays * GANTT_CELL_W - 60;
+  wrapper.scrollLeft = Math.max(0, targetX);
+}
+
+function ganttScroll(days) {
+  const wrapper = document.getElementById('ganttWrapper');
+  if (!wrapper) return;
+  wrapper.scrollBy({ left: days * GANTT_CELL_W, behavior: 'smooth' });
 }
 
 // ===========================
