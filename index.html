@@ -128,7 +128,7 @@
   .modal-header h3 { font-size: 15px; font-weight: 700; }
   .modal-close { background: none; border: none; cursor: pointer; font-size: 20px; color: var(--c-muted); line-height: 1; }
   .modal-body { padding: 20px 24px; }
-  .modal-footer { padding: 14px 24px; border-top: 1px solid var(--c-border); display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-footer { padding: 14px 24px; border-top: 1px solid var(--c-border); display: flex; gap: 8px; justify-content: space-between; align-items: center; }
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .form-group { display: flex; flex-direction: column; gap: 4px; }
   .form-group.full { grid-column: span 2; }
@@ -604,8 +604,11 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-primary" onclick="saveProject()">保存</button>
-      <button class="btn" onclick="closeModal()" style="background:#f0f0f0">キャンセル</button>
+      <button class="btn btn-danger" id="modalDeleteBtn" onclick="deleteFromModal()" style="display:none">🗑 削除</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="saveProject()">保存</button>
+        <button class="btn" onclick="closeModal()" style="background:#f0f0f0">キャンセル</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1148,6 +1151,7 @@ function openAddModal() {
   _editingDateComments = {};
   renderDateCommentList();
   document.getElementById('calcPreview').style.display = 'none';
+  document.getElementById('modalDeleteBtn').style.display = 'none'; // 新規追加時は削除ボタン非表示
   clearErrors();
   document.getElementById('modal').classList.add('open');
 }
@@ -1181,10 +1185,21 @@ function openEditModal(id) {
   renderDateCommentList();
   clearErrors();
   updatePreview();
+  document.getElementById('modalDeleteBtn').style.display = 'inline-flex'; // 編集時は削除ボタン表示
   document.getElementById('modal').classList.add('open');
 }
 
 function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+function deleteFromModal() {
+  if (!editingId) return;
+  const p = projects.find(x => x.id === editingId);
+  if (!p) return;
+  const name = p.name.length > 30 ? p.name.substring(0, 30) + '…' : p.name;
+  if (!confirm(`「${name}」をゴミ箱へ移動しますか？\n\nゴミ箱から復元できます。`)) return;
+  closeModal();
+  deleteProject(editingId);
+}
 
 function updatePreview() {
   const type = document.getElementById('f_type').value;
