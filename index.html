@@ -523,15 +523,19 @@
       <div class="form-section-title">工程実績完了日</div>
       <div class="form-grid">
         <div class="form-group">
-          <label>設計完了実績</label>
+          <label><span class="memo-phase-label" style="background:#BDD7EE"></span>設計完了実績</label>
           <input type="date" id="f_actual_design">
         </div>
         <div class="form-group">
-          <label>資材完了実績</label>
+          <label><span class="memo-phase-label" style="background:#C6EFCE"></span>資材完了実績</label>
           <input type="date" id="f_actual_material">
         </div>
         <div class="form-group">
-          <label>組立完了実績</label>
+          <label><span class="memo-phase-label" style="background:#FFEB9C"></span>加工完了実績</label>
+          <input type="date" id="f_actual_process">
+        </div>
+        <div class="form-group">
+          <label><span class="memo-phase-label" style="background:#FFC7CE"></span>組立完了実績</label>
           <input type="date" id="f_actual_assembly">
         </div>
       </div>
@@ -1135,7 +1139,7 @@ function openAddModal() {
   editingId = null;
   document.getElementById('modalTitle').textContent = '受注追加';
   ['f_name','f_amount','f_planned_start','f_planned_delivery','f_actual_start',
-   'f_actual_delivery','f_actual_design','f_actual_material','f_actual_assembly'].forEach(id => {
+   'f_actual_delivery','f_actual_design','f_actual_material','f_actual_process','f_actual_assembly'].forEach(id => {
     document.getElementById(id).value = '';
   });
   document.getElementById('f_order_date').value = formatDate(new Date());
@@ -1169,6 +1173,7 @@ function openEditModal(id) {
   document.getElementById('f_actual_delivery').value = p.actualDelivery || '';
   document.getElementById('f_actual_design').value = p.actualDesign || '';
   document.getElementById('f_actual_material').value = p.actualMaterial || '';
+  document.getElementById('f_actual_process').value = p.actualProcess || '';
   document.getElementById('f_actual_assembly').value = p.actualAssembly || '';
   document.getElementById('f_r_design').value   = p.designRatio   != null ? Math.round(p.designRatio   * 100) : '';
   document.getElementById('f_r_material').value = p.materialRatio != null ? Math.round(p.materialRatio * 100) : '';
@@ -1413,6 +1418,7 @@ function saveProject() {
     actualDelivery: document.getElementById('f_actual_delivery').value,
     actualDesign: document.getElementById('f_actual_design').value,
     actualMaterial: document.getElementById('f_actual_material').value,
+    actualProcess: document.getElementById('f_actual_process').value,
     actualAssembly: document.getElementById('f_actual_assembly').value,
     designRatio:   (() => { const v = parseFloat(document.getElementById('f_r_design').value);   return isNaN(v) ? null : v/100; })(),
     materialRatio: (() => { const v = parseFloat(document.getElementById('f_r_material').value); return isNaN(v) ? null : v/100; })(),
