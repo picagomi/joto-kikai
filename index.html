@@ -736,9 +736,9 @@ function calcProject(p) {
   const ed = parseDate(p.type === '計画' ? p.plannedDelivery : (p.actualDelivery || p.plannedDelivery));
   if (!st || !ed) return { ...p, designEnd:null, materialEnd:null, processEnd:null, deliveryDate:ed, totalDays:0, progress:0, currentPhase:'-' };
 
+  const total = Math.max(1, networkdays(st, ed));
   let designEnd, materialEnd, processEnd;
   if (p.phaseDesignEnd || p.phaseMaterialEnd || p.phaseProcessEnd) {
-    const total = Math.max(1, networkdays(st, ed));
     const dr = settings.designRatio, mr = settings.materialRatio, pr = settings.processRatio;
     designEnd   = parseDate(p.phaseDesignEnd)   || workdayAdd(st, Math.max(1, Math.round(total * dr)) - 1);
     materialEnd = parseDate(p.phaseMaterialEnd) || workdayAdd(st, Math.max(1, Math.round(total * (dr + mr))) - 1);
@@ -747,7 +747,6 @@ function calcProject(p) {
     const dr = (p.designRatio  != null) ? p.designRatio  : settings.designRatio;
     const mr = (p.materialRatio!= null) ? p.materialRatio: settings.materialRatio;
     const pr = (p.processRatio != null) ? p.processRatio : settings.processRatio;
-    const total = Math.max(1, networkdays(st, ed));
     designEnd   = workdayAdd(st, Math.max(1, Math.round(total * dr)) - 1);
     materialEnd = workdayAdd(st, Math.max(1, Math.round(total * (dr + mr))) - 1);
     processEnd  = workdayAdd(st, Math.max(1, Math.round(total * (dr + mr + pr))) - 1);
