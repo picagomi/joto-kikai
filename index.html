@@ -235,6 +235,11 @@
   }
 
   /* ===== Trash ===== */
+  .archive-badge { display:inline-flex;align-items:center;justify-content:center;background:#2c6fad;color:#fff;border-radius:10px;min-width:16px;height:16px;font-size:10px;font-weight:700;padding:0 4px;margin-left:4px;vertical-align:middle; }
+  .archive-table { width:100%;border-collapse:collapse; }
+  .archive-table th { background:#eef4fb;padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--c-muted);border-bottom:2px solid #c5d9ed; }
+  .archive-table td { padding:8px 10px;border-bottom:1px solid var(--c-border);vertical-align:middle;font-size:12px; }
+  .archive-table tr:hover td { background:#f4f8fd; }
   .trash-badge {
     display: inline-flex; align-items: center; justify-content: center;
     background: #e74c3c; color: #fff; border-radius: 50%;
@@ -355,6 +360,7 @@
   <div class="header-actions">
     <button class="btn btn-success" onclick="openAddModal()">＋ 受注追加</button>
     <button class="btn btn-ghost" onclick="exportData()">📥 エクスポート</button>
+    <button class="btn btn-ghost" onclick="toggleArchive()">📦 アーカイブ<span id="archiveBadge" style="display:none" class="archive-badge"></span></button>
     <button class="btn btn-ghost" onclick="toggleTrash()">🗑 ゴミ箱<span id="trashBadge" style="display:none" class="trash-badge"></span></button>
     <button class="btn btn-ghost" onclick="toggleSettings()">⚙ 設定</button>
   </div>
@@ -393,6 +399,17 @@
       </div>
       <div id="holidayList" style="display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow-y:auto"></div>
     </div>
+  </div>
+
+  <!-- Archive Panel -->
+  <div class="section" id="archiveSection" style="display:none">
+    <div class="section-header">
+      <h2>📦 アーカイブ</h2>
+    </div>
+    <div style="overflow-x:auto">
+      <div id="archiveContent"></div>
+    </div>
+    <div id="archiveGanttArea" style="margin-top:16px;overflow-x:auto"></div>
   </div>
 
   <!-- Trash Panel -->
@@ -616,7 +633,10 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-danger" id="modalDeleteBtn" onclick="deleteFromModal()" style="display:none">🗑 削除</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-danger" id="modalDeleteBtn" onclick="deleteFromModal()" style="display:none">🗑 削除</button>
+        <button class="btn" id="modalArchiveBtn" onclick="archiveFromModal()" style="display:none;background:#e8f4fd;color:#2c6fad;border:1px solid #c5d9ed">📦 アーカイブ</button>
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary" onclick="saveProject()">保存</button>
         <button class="btn" onclick="closeModal()" style="background:#f0f0f0">キャンセル</button>
@@ -802,10 +822,15 @@ function renderSummary() {
 // ===========================
 // RENDER GANTT
 // ===========================
-function renderGantt() {
-  const calced = getFilteredSortedProjects().map(({c}) => c).filter(p => p.startDate && p.deliveryDate);
+function renderGantt(opts) {
+  const wrapperId = (opts && opts.wrapperId) || 'ganttWrapper';
+  const wrapperEl = document.getElementById(wrapperId);
+  if (!wrapperEl) return;
+  const calced = (opts && opts.projectList)
+    ? opts.projectList.map(p => calcProject(p)).filter(p => p.startDate && p.deliveryDate)
+    : getFilteredSortedProjects().map(({c}) => c).filter(p => p.startDate && p.deliveryDate);
   if (calced.length === 0) {
-    document.getElementById('ganttWrapper').innerHTML = '<div class="empty-state"><div class="icon">📋</div>受注を追加するとガントチャートが表示されます</div>';
+    wrapperEl.innerHTML = '<div class="empty-state"><div class="icon">📋</div>受注を追加するとガントチャートが表示されます</div>';
     return;
   }
 
@@ -860,7 +885,9 @@ function renderGantt() {
            onmouseleave="hideGanttMemo()"
            onclick="event.stopPropagation();showGanttMemo(event,'${p.id}')">✎</span>`
       : '';
-    let nameTd = `<td class="col-name" title="${p.name}" style="cursor:pointer" onclick="openEditModal('${p.id}')">` +
+    let nameTd = (opts && opts.readonly)
+      ? `<td class="col-name" title="${p.name}">` +`<div style="display:flex;align-items:center;justify-content:space-between;width:100%"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name.substring(0,maxChars)}${p.name.length>maxChars?'…':''}</span>${memoIcon}</div></td>`
+      : `<td class="col-name" title="${p.name}" style="cursor:pointer" onclick="openEditModal('${p.id}')">` +
       `<div style="display:flex;align-items:center;justify-content:space-between;width:100%">` +
       `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name.substring(0,maxChars)}${p.name.length>maxChars?'…':''}</span>` +
       `${memoIcon}</div></td>`;
@@ -900,7 +927,7 @@ function renderGantt() {
     rowsHTML += `<tr class="gantt-row">${nameTd}${progressTd}${cellsHTML}</tr>`;
   });
 
-  document.getElementById('ganttWrapper').innerHTML = `
+  wrapperEl.innerHTML = `
     <table class="gantt-table">
       <thead>
         <tr>${monthHTML}</tr>
@@ -909,10 +936,11 @@ function renderGantt() {
       <tbody>${rowsHTML}</tbody>
     </table>
   `;
-  // 今日列へ自動スクロール（描画完了後）
-  _ganttMinDate = minDate;
-  requestAnimationFrame(ganttScrollToToday);
-  setupGanttStickyHeader();
+  if (!opts || !opts.noScroll) {
+    _ganttMinDate = minDate;
+    requestAnimationFrame(ganttScrollToToday);
+    setupGanttStickyHeader();
+  }
 }
 
 // ===========================
@@ -1170,7 +1198,8 @@ function openAddModal() {
   _editingDateComments = {};
   renderDateCommentList();
   document.getElementById('calcPreview').style.display = 'none';
-  document.getElementById('modalDeleteBtn').style.display = 'none'; // 新規追加時は削除ボタン非表示
+  document.getElementById('modalDeleteBtn').style.display = 'none';
+  document.getElementById('modalArchiveBtn').style.display = 'none';
   clearErrors();
   document.getElementById('modal').classList.add('open');
 }
@@ -1223,7 +1252,8 @@ function openEditModal(id) {
   renderDateCommentList();
   clearErrors();
   updatePreview();
-  document.getElementById('modalDeleteBtn').style.display = 'inline-flex'; // 編集時は削除ボタン表示
+  document.getElementById('modalDeleteBtn').style.display = 'inline-flex';
+  document.getElementById('modalArchiveBtn').style.display = 'inline-flex';
   document.getElementById('modal').classList.add('open');
 }
 
@@ -1609,6 +1639,131 @@ function loadTrash() {
 }
 
 // ===========================
+// ARCHIVE
+// ===========================
+let archivedProjects = [];
+
+function archiveProject(id) {
+  const p = projects.find(x => x.id === id);
+  if (!p) return;
+  const archived = { ...p, archivedAt: new Date().toISOString() };
+  archivedProjects.unshift(archived);
+  saveArchive();
+  if (db) {
+    db.ref('projects/' + id).remove().catch(e => console.warn('アーカイブエラー:', e));
+  } else {
+    projects = projects.filter(x => x.id !== id);
+    saveData();
+    renderAll();
+  }
+  updateArchiveBadge();
+  showToast('アーカイブに移しました');
+}
+
+function restoreFromArchive(id) {
+  const idx = archivedProjects.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const p = { ...archivedProjects[idx] };
+  delete p.archivedAt;
+  archivedProjects.splice(idx, 1);
+  saveArchive();
+  if (db) {
+    db.ref('projects/' + p.id).set(p).catch(e => console.warn('復旧エラー:', e));
+  } else {
+    projects.push(p);
+    saveData();
+    renderAll();
+  }
+  updateArchiveBadge();
+  renderArchive();
+  showToast('受注を元に戻しました');
+}
+
+function archiveFromModal() {
+  if (!editingId) return;
+  const p = projects.find(x => x.id === editingId);
+  if (!p) return;
+  const name = p.name.length > 30 ? p.name.substring(0, 30) + '…' : p.name;
+  if (!confirm(`「${name}」をアーカイブに移動しますか？\n\nアーカイブから元に戻せます。`)) return;
+  closeModal();
+  archiveProject(editingId);
+}
+
+function toggleArchive() {
+  const s = document.getElementById('archiveSection');
+  s.style.display = s.style.display === 'none' ? 'block' : 'none';
+  if (s.style.display === 'block') renderArchive();
+}
+
+function updateArchiveBadge() {
+  const badge = document.getElementById('archiveBadge');
+  if (!badge) return;
+  if (archivedProjects.length > 0) {
+    badge.textContent = archivedProjects.length;
+    badge.style.display = 'inline-flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function renderArchive() {
+  const el = document.getElementById('archiveContent');
+  if (!el) return;
+  if (archivedProjects.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">📦</div>アーカイブは空です</div>';
+    document.getElementById('archiveGanttArea').innerHTML = '';
+    return;
+  }
+  el.innerHTML = `<table class="archive-table">
+    <thead><tr>
+      <th>受注品名</th><th>分類</th><th>着手予定日</th><th>【要求】納品日</th><th>アーカイブ日</th><th>操作</th>
+    </tr></thead>
+    <tbody>
+      ${archivedProjects.map(p => {
+        const d = new Date(p.archivedAt);
+        const dateStr = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+        return `<tr>
+          <td style="font-weight:600">${escHtml(p.name)}</td>
+          <td>${p.type}</td>
+          <td>${p.plannedStart || '-'}</td>
+          <td>${p.plannedDelivery || '-'}</td>
+          <td class="trash-date">${dateStr}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-success btn-sm" onclick="restoreFromArchive('${p.id}')">↩ 元に戻す</button>
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+  renderGantt({ wrapperId: 'archiveGanttArea', projectList: archivedProjects, noScroll: true, readonly: true });
+}
+
+function saveArchive() {
+  try { localStorage.setItem('wf_archive', JSON.stringify(archivedProjects)); } catch {}
+  if (db) {
+    const obj = {};
+    archivedProjects.forEach(p => { obj[p.id] = p; });
+    db.ref('archive').set(Object.keys(obj).length ? obj : null).catch(() => {});
+  }
+}
+
+function loadArchive() {
+  try {
+    const t = JSON.parse(localStorage.getItem('wf_archive') || '[]');
+    if (Array.isArray(t)) archivedProjects = t;
+  } catch {}
+  if (db) {
+    db.ref('archive').once('value', snapshot => {
+      const data = snapshot.val();
+      if (data) archivedProjects = Object.values(data).filter(Boolean);
+      updateArchiveBadge();
+    });
+  } else {
+    updateArchiveBadge();
+  }
+}
+
+// ===========================
 // SETTINGS
 // ===========================
 function toggleSettings() {
@@ -1722,6 +1877,7 @@ function init() {
     `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日（${'日月火水木金土'[today.getDay()]}）`;
   loadSettings();
   loadTrash();
+  loadArchive();
 
   if (db) {
     // Firebase リアルタイム同期：データが変わるたびに全クライアントが自動更新
