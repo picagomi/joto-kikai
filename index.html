@@ -149,6 +149,9 @@
   .form-group textarea:focus { outline: none; border-color: #2c6fad; }
   .memo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .memo-phase-label { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  .phase-date-table { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+  .phase-date-row { display: grid; grid-template-columns: 52px 1fr 1fr; gap: 8px; align-items: end; }
+  .phase-date-label { font-size: 12px; font-weight: 700; color: var(--c-text); display: flex; align-items: center; gap: 4px; padding-bottom: 9px; }
   .memo-badge { display: inline-flex; align-items: center; gap: 3px; background: #e8f4fd; color: #2c6fad; border-radius: 10px; padding: 1px 7px; font-size: 10px; font-weight: 700; cursor: pointer; }
   .memo-badge:hover { background: #d0eaf9; }
 
@@ -323,6 +326,7 @@
     .form-group input, .form-group select { padding: 10px 12px; font-size: 14px; }
     .form-group textarea { font-size: 14px; }
     .memo-grid { grid-template-columns: 1fr; }
+    .phase-date-row { grid-template-columns: 44px 1fr 1fr; gap: 6px; }
 
     /* Settings: 2列 */
     .settings-panel { grid-template-columns: 1fr 1fr; padding: 12px 12px; }
@@ -540,24 +544,28 @@
         </div>
       </div>
 
-      <div class="form-section-title">工程比率（この案件の個別設定）</div>
-      <div style="font-size:11px;color:var(--c-muted);margin-bottom:8px">空白のままにすると「⚙ 設定」のグローバル値を使用します</div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>設計比率（%）</label>
-          <input type="number" id="f_r_design" step="1" min="0" max="100" placeholder="例: 20" onchange="updateRatioPreview();updatePreview()">
+      <div class="form-section-title">工程日程（この案件の個別設定）</div>
+      <div style="font-size:11px;color:var(--c-muted);margin-bottom:10px">空白のままにすると受注日・納品日から自動計算します。終了日を入力すると次工程の開始日が自動入力されます。</div>
+      <div class="phase-date-table">
+        <div class="phase-date-row">
+          <div class="phase-date-label"><span class="memo-phase-label" style="background:#BDD7EE"></span>設計</div>
+          <div class="form-group"><label>開始日</label><input type="date" id="f_phase_design_start" onchange="updatePreview()"></div>
+          <div class="form-group"><label>終了日</label><input type="date" id="f_phase_design_end" onchange="autoFillNextPhaseStart('design','material')"></div>
         </div>
-        <div class="form-group">
-          <label>資材比率（%）</label>
-          <input type="number" id="f_r_material" step="1" min="0" max="100" placeholder="例: 25" onchange="updateRatioPreview();updatePreview()">
+        <div class="phase-date-row">
+          <div class="phase-date-label"><span class="memo-phase-label" style="background:#C6EFCE"></span>資材</div>
+          <div class="form-group"><label>開始日</label><input type="date" id="f_phase_material_start" onchange="updatePreview()"></div>
+          <div class="form-group"><label>終了日</label><input type="date" id="f_phase_material_end" onchange="autoFillNextPhaseStart('material','process')"></div>
         </div>
-        <div class="form-group">
-          <label>加工比率（%）</label>
-          <input type="number" id="f_r_process" step="1" min="0" max="100" placeholder="例: 35" onchange="updateRatioPreview();updatePreview()">
+        <div class="phase-date-row">
+          <div class="phase-date-label"><span class="memo-phase-label" style="background:#FFEB9C"></span>加工</div>
+          <div class="form-group"><label>開始日</label><input type="date" id="f_phase_process_start" onchange="updatePreview()"></div>
+          <div class="form-group"><label>終了日</label><input type="date" id="f_phase_process_end" onchange="autoFillNextPhaseStart('process','assembly')"></div>
         </div>
-        <div class="form-group">
-          <label>組立比率（%）<span style="color:#aaa;font-weight:400">自動</span></label>
-          <input type="number" id="f_r_assembly" readonly style="background:#f5f5f5;color:#888">
+        <div class="phase-date-row">
+          <div class="phase-date-label"><span class="memo-phase-label" style="background:#FFC7CE"></span>組立</div>
+          <div class="form-group"><label>開始日</label><input type="date" id="f_phase_assembly_start" onchange="updatePreview()"></div>
+          <div class="form-group"><label>終了日</label><input type="date" id="f_phase_assembly_end" onchange="updatePreview()"></div>
         </div>
       </div>
 
@@ -728,13 +736,22 @@ function calcProject(p) {
   const ed = parseDate(p.type === '計画' ? p.plannedDelivery : (p.actualDelivery || p.plannedDelivery));
   if (!st || !ed) return { ...p, designEnd:null, materialEnd:null, processEnd:null, deliveryDate:ed, totalDays:0, progress:0, currentPhase:'-' };
 
-  const dr = (p.designRatio  != null) ? p.designRatio  : settings.designRatio;
-  const mr = (p.materialRatio!= null) ? p.materialRatio: settings.materialRatio;
-  const pr = (p.processRatio != null) ? p.processRatio : settings.processRatio;
-  const total = Math.max(1, networkdays(st, ed));
-  const designEnd   = workdayAdd(st, Math.max(1, Math.round(total * dr)) - 1);
-  const materialEnd = workdayAdd(st, Math.max(1, Math.round(total * (dr + mr))) - 1);
-  const processEnd  = workdayAdd(st, Math.max(1, Math.round(total * (dr + mr + pr))) - 1);
+  let designEnd, materialEnd, processEnd;
+  if (p.phaseDesignEnd || p.phaseMaterialEnd || p.phaseProcessEnd) {
+    const total = Math.max(1, networkdays(st, ed));
+    const dr = settings.designRatio, mr = settings.materialRatio, pr = settings.processRatio;
+    designEnd   = parseDate(p.phaseDesignEnd)   || workdayAdd(st, Math.max(1, Math.round(total * dr)) - 1);
+    materialEnd = parseDate(p.phaseMaterialEnd) || workdayAdd(st, Math.max(1, Math.round(total * (dr + mr))) - 1);
+    processEnd  = parseDate(p.phaseProcessEnd)  || workdayAdd(st, Math.max(1, Math.round(total * (dr + mr + pr))) - 1);
+  } else {
+    const dr = (p.designRatio  != null) ? p.designRatio  : settings.designRatio;
+    const mr = (p.materialRatio!= null) ? p.materialRatio: settings.materialRatio;
+    const pr = (p.processRatio != null) ? p.processRatio : settings.processRatio;
+    const total = Math.max(1, networkdays(st, ed));
+    designEnd   = workdayAdd(st, Math.max(1, Math.round(total * dr)) - 1);
+    materialEnd = workdayAdd(st, Math.max(1, Math.round(total * (dr + mr))) - 1);
+    processEnd  = workdayAdd(st, Math.max(1, Math.round(total * (dr + mr + pr))) - 1);
+  }
 
   const today = new Date(); today.setHours(0,0,0,0);
   const cappedToday = today > ed ? ed : today;
@@ -1144,7 +1161,8 @@ function openAddModal() {
   });
   document.getElementById('f_order_date').value = formatDate(new Date());
   document.getElementById('f_type').value = '計画';
-  ['f_r_design','f_r_material','f_r_process','f_r_assembly'].forEach(id => {
+  ['f_phase_design_start','f_phase_design_end','f_phase_material_start','f_phase_material_end',
+   'f_phase_process_start','f_phase_process_end','f_phase_assembly_start','f_phase_assembly_end'].forEach(id => {
     document.getElementById(id).value = '';
   });
   ['f_memo_design','f_memo_material','f_memo_process','f_memo_assembly','f_memo_biko'].forEach(id => {
@@ -1175,10 +1193,28 @@ function openEditModal(id) {
   document.getElementById('f_actual_material').value = p.actualMaterial || '';
   document.getElementById('f_actual_process').value = p.actualProcess || '';
   document.getElementById('f_actual_assembly').value = p.actualAssembly || '';
-  document.getElementById('f_r_design').value   = p.designRatio   != null ? Math.round(p.designRatio   * 100) : '';
-  document.getElementById('f_r_material').value = p.materialRatio != null ? Math.round(p.materialRatio * 100) : '';
-  document.getElementById('f_r_process').value  = p.processRatio  != null ? Math.round(p.processRatio  * 100) : '';
-  updateRatioPreview();
+  if (p.phaseDesignEnd || p.phaseMaterialEnd || p.phaseProcessEnd || p.phaseAssemblyEnd) {
+    document.getElementById('f_phase_design_start').value   = p.phaseDesignStart   || '';
+    document.getElementById('f_phase_design_end').value     = p.phaseDesignEnd     || '';
+    document.getElementById('f_phase_material_start').value = p.phaseMaterialStart || '';
+    document.getElementById('f_phase_material_end').value   = p.phaseMaterialEnd   || '';
+    document.getElementById('f_phase_process_start').value  = p.phaseProcessStart  || '';
+    document.getElementById('f_phase_process_end').value    = p.phaseProcessEnd    || '';
+    document.getElementById('f_phase_assembly_start').value = p.phaseAssemblyStart || '';
+    document.getElementById('f_phase_assembly_end').value   = p.phaseAssemblyEnd   || '';
+  } else {
+    const c = calcProject(p);
+    const fmtD = d => d ? formatDate(d) : '';
+    const nextDayStr = d => { if (!d) return ''; const n = new Date(d); n.setDate(n.getDate() + 1); return formatDate(n); };
+    document.getElementById('f_phase_design_start').value   = fmtD(c.startDate);
+    document.getElementById('f_phase_design_end').value     = fmtD(c.designEnd);
+    document.getElementById('f_phase_material_start').value = nextDayStr(c.designEnd);
+    document.getElementById('f_phase_material_end').value   = fmtD(c.materialEnd);
+    document.getElementById('f_phase_process_start').value  = nextDayStr(c.materialEnd);
+    document.getElementById('f_phase_process_end').value    = fmtD(c.processEnd);
+    document.getElementById('f_phase_assembly_start').value = nextDayStr(c.processEnd);
+    document.getElementById('f_phase_assembly_end').value   = fmtD(c.deliveryDate);
+  }
   document.getElementById('f_memo_design').value   = p.memoDesign   || '';
   document.getElementById('f_memo_material').value = p.memoMaterial || '';
   document.getElementById('f_memo_process').value  = p.memoProcess  || '';
@@ -1214,9 +1250,11 @@ function updatePreview() {
   const start = parseDate(startStr), end = parseDate(endStr);
   if (!start || !end) { document.getElementById('calcPreview').style.display = 'none'; return; }
 
-  const getRatio = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v/100; };
   const dummy = { type, plannedStart:ps, plannedDelivery:pd, actualStart:as, actualDelivery:document.getElementById('f_actual_delivery').value,
-    designRatio: getRatio('f_r_design'), materialRatio: getRatio('f_r_material'), processRatio: getRatio('f_r_process') };
+    phaseDesignEnd:   document.getElementById('f_phase_design_end').value   || null,
+    phaseMaterialEnd: document.getElementById('f_phase_material_end').value || null,
+    phaseProcessEnd:  document.getElementById('f_phase_process_end').value  || null,
+  };
   const c = calcProject(dummy);
   document.getElementById('calcPreview').style.display = 'block';
   document.getElementById('pv_days').textContent = c.totalDays + '日';
@@ -1360,12 +1398,14 @@ function hideGanttMemo() {
   document.getElementById('ganttTip').style.display = 'none';
 }
 
-function updateRatioPreview() {
-  const d = parseFloat(document.getElementById('f_r_design').value) || 0;
-  const m = parseFloat(document.getElementById('f_r_material').value) || 0;
-  const p = parseFloat(document.getElementById('f_r_process').value) || 0;
-  const a = Math.max(0, 100 - d - m - p);
-  document.getElementById('f_r_assembly').value = (d || m || p) ? a : '';
+function autoFillNextPhaseStart(from, to) {
+  const endVal = document.getElementById('f_phase_' + from + '_end').value;
+  if (endVal) {
+    const d = new Date(endVal + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    document.getElementById('f_phase_' + to + '_start').value = formatDate(d);
+  }
+  updatePreview();
 }
 
 function clearErrors() {
@@ -1420,9 +1460,14 @@ function saveProject() {
     actualMaterial: document.getElementById('f_actual_material').value,
     actualProcess: document.getElementById('f_actual_process').value,
     actualAssembly: document.getElementById('f_actual_assembly').value,
-    designRatio:   (() => { const v = parseFloat(document.getElementById('f_r_design').value);   return isNaN(v) ? null : v/100; })(),
-    materialRatio: (() => { const v = parseFloat(document.getElementById('f_r_material').value); return isNaN(v) ? null : v/100; })(),
-    processRatio:  (() => { const v = parseFloat(document.getElementById('f_r_process').value);  return isNaN(v) ? null : v/100; })(),
+    phaseDesignStart:   document.getElementById('f_phase_design_start').value,
+    phaseDesignEnd:     document.getElementById('f_phase_design_end').value,
+    phaseMaterialStart: document.getElementById('f_phase_material_start').value,
+    phaseMaterialEnd:   document.getElementById('f_phase_material_end').value,
+    phaseProcessStart:  document.getElementById('f_phase_process_start').value,
+    phaseProcessEnd:    document.getElementById('f_phase_process_end').value,
+    phaseAssemblyStart: document.getElementById('f_phase_assembly_start').value,
+    phaseAssemblyEnd:   document.getElementById('f_phase_assembly_end').value,
     memoDesign:   document.getElementById('f_memo_design').value.trim(),
     memoMaterial: document.getElementById('f_memo_material').value.trim(),
     memoProcess:  document.getElementById('f_memo_process').value.trim(),
