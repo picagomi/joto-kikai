@@ -756,26 +756,38 @@ function calcProject(p) {
   const ed = parseDate(p.type === '計画' ? p.plannedDelivery : (p.actualDelivery || p.plannedDelivery));
   if (!st || !ed) return { ...p, designEnd:null, materialEnd:null, processEnd:null, deliveryDate:ed, totalDays:0, progress:0, currentPhase:'-' };
 
-  const total = Math.max(1, networkdays(st, ed));
+  const ratioTotal = Math.max(1, networkdays(st, ed));
   let designEnd, materialEnd, processEnd;
-  if (p.phaseDesignEnd || p.phaseMaterialEnd || p.phaseProcessEnd) {
+  let startDate = st;
+  let ganttEnd  = ed;
+
+  const hasPhase = p.phaseDesignStart || p.phaseDesignEnd ||
+                   p.phaseMaterialEnd || p.phaseProcessEnd || p.phaseAssemblyEnd;
+  if (hasPhase) {
+    // 直接入力された工程日程を使用
     const dr = settings.designRatio, mr = settings.materialRatio, pr = settings.processRatio;
-    designEnd   = parseDate(p.phaseDesignEnd)   || workdayAdd(st, Math.max(1, Math.round(total * dr)) - 1);
-    materialEnd = parseDate(p.phaseMaterialEnd) || workdayAdd(st, Math.max(1, Math.round(total * (dr + mr))) - 1);
-    processEnd  = parseDate(p.phaseProcessEnd)  || workdayAdd(st, Math.max(1, Math.round(total * (dr + mr + pr))) - 1);
+    const pd = parseDate(p.phaseDesignStart);
+    const pa = parseDate(p.phaseAssemblyEnd);
+    if (pd) startDate = pd;
+    if (pa) ganttEnd  = pa;
+    designEnd   = parseDate(p.phaseDesignEnd)   || workdayAdd(st, Math.max(1, Math.round(ratioTotal * dr)) - 1);
+    materialEnd = parseDate(p.phaseMaterialEnd) || workdayAdd(st, Math.max(1, Math.round(ratioTotal * (dr + mr))) - 1);
+    processEnd  = parseDate(p.phaseProcessEnd)  || workdayAdd(st, Math.max(1, Math.round(ratioTotal * (dr + mr + pr))) - 1);
   } else {
+    // 比率ベースでフォールバック計算
     const dr = (p.designRatio  != null) ? p.designRatio  : settings.designRatio;
     const mr = (p.materialRatio!= null) ? p.materialRatio: settings.materialRatio;
     const pr = (p.processRatio != null) ? p.processRatio : settings.processRatio;
-    designEnd   = workdayAdd(st, Math.max(1, Math.round(total * dr)) - 1);
-    materialEnd = workdayAdd(st, Math.max(1, Math.round(total * (dr + mr))) - 1);
-    processEnd  = workdayAdd(st, Math.max(1, Math.round(total * (dr + mr + pr))) - 1);
+    designEnd   = workdayAdd(st, Math.max(1, Math.round(ratioTotal * dr)) - 1);
+    materialEnd = workdayAdd(st, Math.max(1, Math.round(ratioTotal * (dr + mr))) - 1);
+    processEnd  = workdayAdd(st, Math.max(1, Math.round(ratioTotal * (dr + mr + pr))) - 1);
   }
 
   const today = new Date(); today.setHours(0,0,0,0);
-  const cappedToday = today > ed ? ed : today;
-  const elapsed = Math.max(1, networkdays(st, cappedToday));
-  const progress = Math.max(0, Math.min(1, elapsed / total));
+  const ganttTotal  = Math.max(1, networkdays(startDate, ganttEnd));
+  const cappedToday = today > ganttEnd ? ganttEnd : today;
+  const elapsed     = Math.max(1, networkdays(startDate, cappedToday));
+  const progress    = Math.max(0, Math.min(1, elapsed / ganttTotal));
 
   let currentPhase;
   if (p.actualDelivery && parseDate(p.actualDelivery) <= today) currentPhase = '完了';
@@ -784,8 +796,7 @@ function calcProject(p) {
   else if (today <= processEnd)  currentPhase = '加工';
   else                            currentPhase = '組立';
 
-  const startDate = st;
-  return { ...p, startDate, designEnd, materialEnd, processEnd, deliveryDate: ed, totalDays: total, progress, currentPhase };
+  return { ...p, startDate, designEnd, materialEnd, processEnd, deliveryDate: ganttEnd, totalDays: ganttTotal, progress, currentPhase };
 }
 
 // ===========================
