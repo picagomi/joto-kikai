@@ -934,24 +934,24 @@ function renderGantt(opts) {
       <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${Math.round(p.progress*100)}%"></div></div>
       <div class="progress-text">${Math.round(p.progress*100)}%</div>
     </td>`;
-    // --- Lane assignment: prevent comment overlaps (up to 3 rows) ---
-    const commentItems = [];
+    // --- Lane assignment: 1コメント1レーン（最大3行、重なり防止） ---
+    const allCommentItems = [];
     dates.forEach((d, idx) => {
       const ds = formatDate(d);
       const raw = (p.dateComments || {})[ds];
       const cmt = raw ? (Array.isArray(raw) ? raw : [raw]).filter(Boolean) : [];
-      if (cmt.length > 0) commentItems.push({ idx, dateStr: ds, text: cmt.join(' / ') });
+      cmt.forEach((text, subIdx) => allCommentItems.push({ idx, dateStr: ds, text, subIdx }));
     });
     const laneEnd = [-1, -1, -1];
-    const laneMap = {};
-    commentItems.forEach(({ idx, dateStr, text }) => {
+    const laneMap = {}; // key: `${dateStr}_${subIdx}`
+    allCommentItems.forEach(({ idx, dateStr, text, subIdx }) => {
       const span = Math.ceil(text.length / 4) + 2;
       let lane = 0;
       for (let l = 0; l < 3; l++) { if (laneEnd[l] < idx) { lane = l; break; } }
-      laneMap[dateStr] = lane;
+      laneMap[`${dateStr}_${subIdx}`] = lane;
       laneEnd[lane] = idx + span;
     });
-    const hasComments = commentItems.length > 0;
+    const hasComments = allCommentItems.length > 0;
 
     let cellsHTML = '';
     dates.forEach(d => {
@@ -979,9 +979,11 @@ function renderGantt(opts) {
         : [];
       let commentHTML = '';
       if (cellComments.length > 0) {
-        const lane = laneMap[dateStr] !== undefined ? laneMap[dateStr] : 0;
-        const topPx = 2 + lane * 18;
-        commentHTML = `<div class="cell-tag" style="top:${topPx}px" onclick="event.stopPropagation();openGanttCellComment(event,'${p.id}','${dateStr}')">${escHtml(cellComments.join(' / '))}</div>`;
+        commentHTML = cellComments.map((text, subIdx) => {
+          const lane = laneMap[`${dateStr}_${subIdx}`] !== undefined ? laneMap[`${dateStr}_${subIdx}`] : subIdx;
+          const topPx = 2 + lane * 18;
+          return `<div class="cell-tag" style="top:${topPx}px" onclick="event.stopPropagation();openGanttCellComment(event,'${p.id}','${dateStr}')">${escHtml(text)}</div>`;
+        }).join('');
       }
       const cellClick = (opts && opts.readonly) ? '' : `onclick="openGanttCellComment(event,'${p.id}','${dateStr}')"`;
       cellsHTML += `<td class="gantt-cell ${phaseCls} ${wkCls} ${todayCls}" ${cellClick}>${commentHTML}</td>`;
