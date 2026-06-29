@@ -98,6 +98,9 @@
   .gantt-row:hover .col-name,
   .gantt-row:hover .col-progress { background: #f0f4f8; }
   .gantt-row:hover .gantt-cell { filter: brightness(0.93); }
+  .gantt-row-tall .gantt-cell,
+  .gantt-row-tall .col-name,
+  .gantt-row-tall .col-progress { height: 56px; }
 
   /* Progress bar */
   .progress-bar-wrap { width: 100%; background: #eee; border-radius: 4px; height: 8px; margin: 2px 0; }
@@ -166,7 +169,7 @@
   .dc-text { flex: 1; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dc-del  { background: none; border: none; cursor: pointer; color: #e74c3c; font-size: 13px; padding: 0; flex-shrink: 0; line-height: 1; }
   /* Gantt cell tag comment */
-  .gantt-cell { position: relative; }
+  .gantt-cell { position: relative; cursor: pointer; }
   .cell-tag {
     position: absolute; top: 3px; left: 2px;
     display: inline-flex; align-items: center;
@@ -176,8 +179,18 @@
     border-radius: 0 3px 3px 0;
     white-space: nowrap; overflow: visible;
     box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-    z-index: 3;
+    z-index: 3; cursor: pointer;
   }
+  /* Gantt quick comment popup */
+  #ganttCommentPopup {
+    display: none; position: fixed; z-index: 300;
+    background: #fff; border: 1px solid #ddd; border-radius: 10px;
+    padding: 12px 14px; box-shadow: 0 6px 28px rgba(0,0,0,0.22);
+    min-width: 268px; max-width: 340px;
+  }
+  #gcpList .gcp-row { display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;border-bottom:1px solid #f0f0f0; }
+  #gcpList .gcp-row:last-child { border-bottom:none; }
+  #gcpList .gcp-del { background:none;border:none;color:#e74c3c;cursor:pointer;font-size:13px;padding:0;line-height:1;flex-shrink:0; }
   .cell-tag::before {
     content: '';
     position: absolute; left: 0; top: 0; bottom: 0;
@@ -482,6 +495,20 @@
 
 <!-- Gantt Memo Tooltip -->
 <div id="ganttTip" style="position:fixed;z-index:9999;display:none;background:#fff;border:1px solid #e0e4ea;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:12px 14px;min-width:200px;max-width:280px;font-size:12px;pointer-events:none;line-height:1.6"></div>
+
+<!-- Gantt quick comment popup -->
+<div id="ganttCommentPopup">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div style="font-weight:700;font-size:12px;color:#555">💬 <span id="gcpDateLabel">-</span></div>
+    <button onclick="closeGanttCommentPopup()" style="background:none;border:none;cursor:pointer;font-size:18px;color:#aaa;line-height:1;padding:0">✕</button>
+  </div>
+  <div id="gcpList" style="margin-bottom:8px"></div>
+  <div style="display:flex;gap:6px">
+    <input type="text" id="gcpInput" placeholder="コメントを入力" onkeydown="if(event.key==='Enter')saveGanttComment()"
+      style="flex:1;border:1px solid #ccc;border-radius:6px;padding:7px 9px;font-size:13px;font-family:inherit;outline:none">
+    <button onclick="saveGanttComment()" style="background:#2c6fad;color:#fff;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap">追加</button>
+  </div>
+</div>
 
 <!-- Add/Edit Modal -->
 <div class="modal-overlay" id="modal">
@@ -907,6 +934,25 @@ function renderGantt(opts) {
       <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${Math.round(p.progress*100)}%"></div></div>
       <div class="progress-text">${Math.round(p.progress*100)}%</div>
     </td>`;
+    // --- Lane assignment: prevent comment overlaps (up to 3 rows) ---
+    const commentItems = [];
+    dates.forEach((d, idx) => {
+      const ds = formatDate(d);
+      const raw = (p.dateComments || {})[ds];
+      const cmt = raw ? (Array.isArray(raw) ? raw : [raw]).filter(Boolean) : [];
+      if (cmt.length > 0) commentItems.push({ idx, dateStr: ds, text: cmt.join(' / ') });
+    });
+    const laneEnd = [-1, -1, -1];
+    const laneMap = {};
+    commentItems.forEach(({ idx, dateStr, text }) => {
+      const span = Math.ceil(text.length / 4) + 2;
+      let lane = 0;
+      for (let l = 0; l < 3; l++) { if (laneEnd[l] < idx) { lane = l; break; } }
+      laneMap[dateStr] = lane;
+      laneEnd[lane] = idx + span;
+    });
+    const hasComments = commentItems.length > 0;
+
     let cellsHTML = '';
     dates.forEach(d => {
       const dt = d.getTime();
@@ -926,16 +972,22 @@ function renderGantt(opts) {
       }
       const wkCls = isHoliday(d) ? 'holiday' : (isWeekend(d) ? 'weekend' : '');
       const todayCls = isToday ? 'today-col' : '';
-      const rawComment = (p.dateComments || {})[formatDate(d)];
+      const dateStr = formatDate(d);
+      const rawComment = (p.dateComments || {})[dateStr];
       const cellComments = rawComment
         ? (Array.isArray(rawComment) ? rawComment : [rawComment]).filter(Boolean)
         : [];
-      const commentText = cellComments.length > 0
-        ? `<div class="cell-tag">${cellComments.join(' / ')}</div>`
-        : '';
-      cellsHTML += `<td class="gantt-cell ${phaseCls} ${wkCls} ${todayCls}">${commentText}</td>`;
+      let commentHTML = '';
+      if (cellComments.length > 0) {
+        const lane = laneMap[dateStr] !== undefined ? laneMap[dateStr] : 0;
+        const topPx = 2 + lane * 18;
+        commentHTML = `<div class="cell-tag" style="top:${topPx}px" onclick="event.stopPropagation();openGanttCellComment(event,'${p.id}','${dateStr}')">${escHtml(cellComments.join(' / '))}</div>`;
+      }
+      const cellClick = (opts && opts.readonly) ? '' : `onclick="openGanttCellComment(event,'${p.id}','${dateStr}')"`;
+      cellsHTML += `<td class="gantt-cell ${phaseCls} ${wkCls} ${todayCls}" ${cellClick}>${commentHTML}</td>`;
     });
-    rowsHTML += `<tr class="gantt-row">${nameTd}${progressTd}${cellsHTML}</tr>`;
+    const rowCls = hasComments ? 'gantt-row gantt-row-tall' : 'gantt-row';
+    rowsHTML += `<tr class="${rowCls}">${nameTd}${progressTd}${cellsHTML}</tr>`;
   });
 
   wrapperEl.innerHTML = `
@@ -1438,6 +1490,79 @@ function hideGanttMemo() {
   document.getElementById('ganttTip').style.display = 'none';
 }
 
+// ===========================
+// GANTT QUICK COMMENT POPUP
+// ===========================
+let _gcpProjectId = null, _gcpDateStr = null;
+
+function openGanttCellComment(e, pid, dateStr) {
+  e.stopPropagation();
+  _gcpProjectId = pid;
+  _gcpDateStr = dateStr;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const popup = document.getElementById('ganttCommentPopup');
+  let left = rect.left, top = rect.bottom + 6;
+  if (left + 300 > window.innerWidth) left = window.innerWidth - 304;
+  if (top + 180 > window.innerHeight) top = rect.top - 184;
+  popup.style.left = Math.max(4, left) + 'px';
+  popup.style.top  = Math.max(4, top) + 'px';
+  popup.style.display = 'block';
+  renderGanttCommentPopup();
+  setTimeout(() => { const el = document.getElementById('gcpInput'); if (el) el.focus(); }, 40);
+}
+
+function renderGanttCommentPopup() {
+  if (!_gcpProjectId || !_gcpDateStr) return;
+  const p = projects.find(x => x.id === _gcpProjectId);
+  const comments = p ? getCommentArray((p.dateComments || {})[_gcpDateStr]) : [];
+  document.getElementById('gcpDateLabel').textContent = formatDateJP(parseDate(_gcpDateStr));
+  const listEl = document.getElementById('gcpList');
+  listEl.innerHTML = comments.map((c, i) =>
+    `<div class="gcp-row"><span style="flex:1">${escHtml(c)}</span><button class="gcp-del" onclick="deleteGanttComment(${i})">✕</button></div>`
+  ).join('');
+  document.getElementById('gcpInput').value = '';
+}
+
+function closeGanttCommentPopup() {
+  document.getElementById('ganttCommentPopup').style.display = 'none';
+  _gcpProjectId = null; _gcpDateStr = null;
+}
+
+function saveGanttComment() {
+  const text = document.getElementById('gcpInput').value.trim();
+  if (!text || !_gcpProjectId || !_gcpDateStr) return;
+  const idx = projects.findIndex(x => x.id === _gcpProjectId);
+  if (idx < 0) return;
+  const p = { ...projects[idx] };
+  const dc = Object.assign({}, p.dateComments || {});
+  const arr = getCommentArray(dc[_gcpDateStr]);
+  arr.push(text);
+  dc[_gcpDateStr] = arr;
+  p.dateComments = dc;
+  projects[idx] = p;
+  if (db) db.ref('projects/' + p.id).set(p).catch(() => {});
+  else { saveData(); renderAll(); }
+  renderGanttCommentPopup();
+  showToast('コメントを追加しました');
+}
+
+function deleteGanttComment(commentIdx) {
+  const idx = projects.findIndex(x => x.id === _gcpProjectId);
+  if (idx < 0) return;
+  const p = { ...projects[idx] };
+  const dc = Object.assign({}, p.dateComments || {});
+  const arr = getCommentArray(dc[_gcpDateStr]);
+  arr.splice(commentIdx, 1);
+  if (arr.length === 0) delete dc[_gcpDateStr];
+  else dc[_gcpDateStr] = arr;
+  p.dateComments = dc;
+  projects[idx] = p;
+  if (db) db.ref('projects/' + p.id).set(p).catch(() => {});
+  else { saveData(); renderAll(); }
+  renderGanttCommentPopup();
+  showToast('コメントを削除しました');
+}
+
 function autoFillNextPhaseStart(from, to) {
   const endVal = document.getElementById('f_phase_' + from + '_end').value;
   if (endVal) {
@@ -1923,6 +2048,14 @@ function init() {
 
 // Close modal on overlay click
 document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
+
+// Close gantt comment popup when clicking outside
+document.addEventListener('click', e => {
+  const popup = document.getElementById('ganttCommentPopup');
+  if (popup && popup.style.display === 'block' && !popup.contains(e.target)) {
+    closeGanttCommentPopup();
+  }
+});
 
 // 画面サイズ変更（スマホ回転など）で再描画
 let resizeTimer;
