@@ -946,10 +946,11 @@ function renderGantt(opts) {
     const laneMap = {}; // key: `${dateStr}_${subIdx}`
     allCommentItems.forEach(({ idx, dateStr, text, subIdx }) => {
       const span = Math.ceil(text.length / 4) + 2;
-      let lane = 0;
+      // デフォルトは subIdx % 3：全レーン埋まっているとき同日コメントが別レーンに分散
+      let lane = subIdx % 3;
       for (let l = 0; l < 3; l++) { if (laneEnd[l] < idx) { lane = l; break; } }
       laneMap[`${dateStr}_${subIdx}`] = lane;
-      laneEnd[lane] = idx + span;
+      laneEnd[lane] = Math.max(laneEnd[lane], idx + span);
     });
     const hasComments = allCommentItems.length > 0;
 
