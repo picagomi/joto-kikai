@@ -533,7 +533,7 @@
         </div>
         <div class="form-group">
           <label>受注金額（円）</label>
-          <input type="number" id="f_amount" placeholder="30000000">
+          <input type="text" id="f_amount" placeholder="18,980,000" inputmode="numeric" oninput="formatAmountInput(this)">
         </div>
         <div class="form-group">
           <label>受注日</label>
@@ -1278,7 +1278,7 @@ function openEditModal(id) {
   document.getElementById('modalTitle').textContent = '受注編集';
   document.getElementById('f_name').value = p.name || '';
   document.getElementById('f_type').value = p.type || '計画';
-  document.getElementById('f_amount').value = p.amount || '';
+  document.getElementById('f_amount').value = p.amount ? Number(p.amount).toLocaleString('ja-JP') : '';
   document.getElementById('f_order_date').value = p.orderDate || '';
   document.getElementById('f_planned_start').value = p.plannedStart || '';
   document.getElementById('f_planned_delivery').value = p.plannedDelivery || '';
@@ -1359,6 +1359,11 @@ function updatePreview() {
   document.getElementById('pv_process').textContent = formatDateJP(c.processEnd);
   document.getElementById('pv_phase').textContent = c.currentPhase;
   document.getElementById('pv_progress').textContent = Math.round(c.progress*100) + '%';
+}
+
+function formatAmountInput(el) {
+  const raw = el.value.replace(/,/g, '').replace(/[^0-9]/g, '');
+  el.value = raw ? Number(raw).toLocaleString('ja-JP') : '';
 }
 
 function escHtml(s) {
@@ -1619,7 +1624,7 @@ function saveProject() {
     id: editingId || Date.now().toString(),
     name,
     type: document.getElementById('f_type').value,
-    amount: document.getElementById('f_amount').value,
+    amount: document.getElementById('f_amount').value.replace(/,/g, ''),
     orderDate: document.getElementById('f_order_date').value,
     plannedStart: ps,
     plannedDelivery: pd,
