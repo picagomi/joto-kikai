@@ -833,26 +833,27 @@ function renderSummary() {
   const calced = projects.map(calcProject);
   const counts = { '設計':0, '資材':0, '加工':0, '組立':0, '完了':0 };
   calced.forEach(p => { if (counts[p.currentPhase] !== undefined) counts[p.currentPhase]++; });
+  const fmtN = n => Number(n).toLocaleString('ja-JP');
   document.getElementById('summaryCards').innerHTML = `
     <div class="summary-card total">
       <div class="label">総受注数</div>
-      <div class="value">${projects.length}</div>
+      <div class="value">${fmtN(projects.length)}</div>
     </div>
     <div class="summary-card design">
       <div class="label">設計中</div>
-      <div class="value">${counts['設計']}</div>
+      <div class="value">${fmtN(counts['設計'])}</div>
     </div>
     <div class="summary-card mat">
       <div class="label">資材手配中</div>
-      <div class="value">${counts['資材']}</div>
+      <div class="value">${fmtN(counts['資材'])}</div>
     </div>
     <div class="summary-card proc">
       <div class="label">加工中</div>
-      <div class="value">${counts['加工']}</div>
+      <div class="value">${fmtN(counts['加工'])}</div>
     </div>
     <div class="summary-card asm">
       <div class="label">組立中</div>
-      <div class="value">${counts['組立']}</div>
+      <div class="value">${fmtN(counts['組立'])}</div>
     </div>
   `;
 }
@@ -1204,7 +1205,7 @@ function renderTable() {
   const countEl = document.getElementById('filterCount');
   if (countEl) {
     const isFiltered = tableFilter.name || tableFilter.type || tableFilter.phase;
-    countEl.textContent = isFiltered ? `${list.length} / ${projects.length} 件表示` : `${projects.length} 件`;
+    countEl.textContent = isFiltered ? `${list.length.toLocaleString('ja-JP')} / ${projects.length.toLocaleString('ja-JP')} 件表示` : `${projects.length.toLocaleString('ja-JP')} 件`;
   }
 
   if (projects.length === 0) {
@@ -1352,7 +1353,7 @@ function updatePreview() {
   };
   const c = calcProject(dummy);
   document.getElementById('calcPreview').style.display = 'block';
-  document.getElementById('pv_days').textContent = c.totalDays + '日';
+  document.getElementById('pv_days').textContent = c.totalDays.toLocaleString('ja-JP') + '日';
   document.getElementById('pv_design').textContent = formatDateJP(c.designEnd);
   document.getElementById('pv_material').textContent = formatDateJP(c.materialEnd);
   document.getElementById('pv_process').textContent = formatDateJP(c.processEnd);
