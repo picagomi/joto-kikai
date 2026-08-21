@@ -1470,7 +1470,8 @@ function printProjectCalendar(id) {
   addSticky(stickyMap, c.deliveryDate,'納品',     '納品');
 
   const dates = [c.designEnd, c.materialEnd, c.processEnd, c.deliveryDate].filter(Boolean);
-  const minDate = c.startDate || dates[0];
+  const todayM = new Date(); todayM.setDate(1); todayM.setHours(0,0,0,0);
+  const minDate = todayM;
   const maxDate = dates[dates.length - 1];
 
   const html = buildCalendarHTML(`${p.name}　工程カレンダー`, stickyMap, minDate, maxDate);
@@ -1493,8 +1494,9 @@ function printAllCalendar() {
     addSticky(stickyMap, p.deliveryDate,n + '　納品',     '納品');
   });
 
-  const allDates = calced.flatMap(p => [p.designEnd, p.materialEnd, p.processEnd, p.deliveryDate, p.startDate]).filter(Boolean);
-  const minDate = allDates.reduce((m, d) => d < m ? d : m, allDates[0]);
+  const allDates = calced.flatMap(p => [p.designEnd, p.materialEnd, p.processEnd, p.deliveryDate]).filter(Boolean);
+  const todayM2 = new Date(); todayM2.setDate(1); todayM2.setHours(0,0,0,0);
+  const minDate = todayM2;
   const maxDate = allDates.reduce((m, d) => d > m ? d : m, allDates[0]);
 
   const html = buildCalendarHTML('工程カレンダー（全案件）', stickyMap, minDate, maxDate);
