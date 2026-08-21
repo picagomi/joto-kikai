@@ -376,7 +376,7 @@
   .cal-table th.cal-sun{color:#e74c3c} .cal-table th.cal-sat{color:#2980b9}
   .cal-table td { vertical-align:top;border:1px solid #ddd;height:90px;padding:0;background:#fff; }
   .cal-table td.cal-other{background:#f9f9f9} .cal-table td.cal-today{background:#fffde7}
-  .cal-cell-inner { height:90px;overflow:hidden;padding:3px; }
+  .cal-cell-inner { min-height:90px;padding:3px; }
   .cal-dn { font-size:13px;font-weight:bold;margin-bottom:3px; }
   .cal-dn.cal-sun,.cal-dn.cal-hol{color:#e74c3c} .cal-dn.cal-sat{color:#2980b9}
   .cal-sticky { font-size:8px;font-weight:700;padding:2px 5px 2px 4px;border-radius:2px;margin-bottom:2px;
@@ -387,8 +387,8 @@
     .cal-month-title { font-size:15px; }
     .cal-legend-item { font-size:7px;padding:1px 4px 1px 3px; }
     .cal-table th { font-size:9px;padding:3px 1px; }
-    .cal-table td { height:60px; }
-    .cal-cell-inner { height:60px;padding:2px; }
+    .cal-table td { height:auto;min-height:60px; }
+    .cal-cell-inner { min-height:60px;padding:2px; }
     .cal-dn { font-size:10px;margin-bottom:1px; }
     .cal-sticky { font-size:6px;padding:1px 3px;border-left-width:3px;margin-bottom:1px; }
   }
@@ -1435,14 +1435,25 @@ function openStickyPopup(e, pid, fullName, phase) {
   popup.style.display = 'block';
   const vw = window.innerWidth, vh = window.innerHeight;
   const pw = Math.min(280, vw * 0.9);
-  let left = e.clientX - pw / 2;
-  let top = e.clientY + 12;
-  if (left < 8) left = 8;
+  popup.style.width = pw + 'px';
+
+  // タップした付箋のRect取得
+  const rect = e.currentTarget.getBoundingClientRect
+    ? e.currentTarget.getBoundingClientRect()
+    : { top: e.clientY, bottom: e.clientY, left: e.clientX, right: e.clientX };
+  const popH = popup.offsetHeight || 120;
+
+  // 付箋の下に十分スペースがあれば下、なければ上に表示
+  let top = rect.bottom + 8;
+  if (top + popH > vh - 8) top = rect.top - popH - 8;
+  if (top < 8) top = 8;
+
+  let left = rect.left;
   if (left + pw > vw - 8) left = vw - pw - 8;
-  if (top + 130 > vh) top = e.clientY - 140;
+  if (left < 8) left = 8;
+
   popup.style.left = left + 'px';
   popup.style.top = top + 'px';
-  popup.style.width = pw + 'px';
 }
 
 function closeStickyPopup() {
