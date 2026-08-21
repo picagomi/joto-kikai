@@ -546,6 +546,14 @@
   </div>
   <div id="calOverlayBody" style="padding:10px"></div>
 </div>
+<div id="calStickyPopup" style="display:none;position:fixed;z-index:600;background:#fff;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,0.25);padding:14px 16px;max-width:280px;width:90%">
+  <div id="calStickyPhase" style="font-size:10px;font-weight:700;margin-bottom:4px;color:#666"></div>
+  <div id="calStickyName" style="font-size:14px;font-weight:700;margin-bottom:12px;line-height:1.4;word-break:break-all"></div>
+  <div style="display:flex;gap:8px">
+    <button onclick="goToEditFromCalendar()" style="flex:1;background:#2c6fad;color:#fff;border:none;border-radius:6px;padding:8px;font-size:13px;cursor:pointer">✏️ 編集画面へ</button>
+    <button onclick="closeStickyPopup()" style="background:#f0f0f0;border:none;border-radius:6px;padding:8px 12px;font-size:13px;cursor:pointer">✕</button>
+  </div>
+</div>
 
 <div id="ganttTip" style="position:fixed;z-index:9999;display:none;background:#fff;border:1px solid #e0e4ea;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:12px 14px;min-width:200px;max-width:280px;font-size:12px;pointer-events:none;line-height:1.6"></div>
 
@@ -1415,8 +1423,42 @@ function updatePreview() {
   document.getElementById('pv_progress').textContent = Math.round(c.progress*100) + '%';
 }
 
+let _calStickyPid = null;
+
+function openStickyPopup(e, pid, fullName, phase) {
+  _calStickyPid = pid;
+  document.getElementById('calStickyPhase').textContent = phase;
+  document.getElementById('calStickyName').textContent = fullName;
+  const popup = document.getElementById('calStickyPopup');
+  popup.style.display = 'block';
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const pw = Math.min(280, vw * 0.9);
+  let left = e.clientX - pw / 2;
+  let top = e.clientY + 12;
+  if (left < 8) left = 8;
+  if (left + pw > vw - 8) left = vw - pw - 8;
+  if (top + 130 > vh) top = e.clientY - 140;
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+  popup.style.width = pw + 'px';
+}
+
+function closeStickyPopup() {
+  document.getElementById('calStickyPopup').style.display = 'none';
+  _calStickyPid = null;
+}
+
+function goToEditFromCalendar() {
+  if (!_calStickyPid) return;
+  const pid = _calStickyPid;
+  closeStickyPopup();
+  closeCalendarOverlay();
+  openEditModal(pid);
+}
+
 function closeCalendarOverlay() {
   document.getElementById('calendarOverlay').style.display = 'none';
+  closeStickyPopup();
 }
 
 function showCalendarOverlay(title, bodyHTML) {
@@ -1463,10 +1505,12 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
       const isToday = date.getTime() === today.getTime();
       const dnCls = (dow===0||isHoli) ? 'cal-sun' : (dow===6 ? 'cal-sat' : '');
       const key = formatDate(date);
-      const stickers = (stickyMap[key] || []).map(({ label, phase }) => {
+      const stickers = (stickyMap[key] || []).map(({ label, phase, pid, fullName }) => {
         const s = PHASE_STYLE[phase] || { bg:'#eee', border:'#ccc', icon:'📌' };
-        const short = label.length > 13 ? label.substring(0,13)+'…' : label;
-        return `<span class="cal-sticky" style="background:${s.bg};border-color:${s.border}" title="${label}">${s.icon} ${short}</span>`;
+        const short = fullName.length > 10 ? fullName.substring(0,10)+'…' : fullName;
+        const safePhase = label.replace(/'/g, "\\'");
+        const safeName = fullName.replace(/'/g, "\\'");
+        return `<span class="cal-sticky" style="background:${s.bg};border-color:${s.border};cursor:pointer" onclick="event.stopPropagation();openStickyPopup(event,'${pid}','${safeName}','${safePhase}')">${s.icon} ${short}</span>`;
       }).join('');
       body += `<td class="${isToday?'cal-today':''}"><div class="cal-dn ${dnCls}">${day}</div>${stickers}</td>`;
       if (dow === 6 && day < daysInMonth) body += '</tr><tr>';
@@ -1478,11 +1522,11 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
   return body;
 }
 
-function addSticky(map, date, label, phase) {
+function addSticky(map, date, label, phase, pid, fullName) {
   if (!date) return;
   const key = formatDate(date);
   if (!map[key]) map[key] = [];
-  map[key].push({ label, phase });
+  map[key].push({ label, phase, pid: pid || '', fullName: fullName || label });
 }
 
 // 案件別カレンダー印刷
@@ -1493,10 +1537,10 @@ function printProjectCalendar(id) {
   if (!c.deliveryDate) { alert('納品日が設定されていません'); return; }
 
   const stickyMap = {};
-  addSticky(stickyMap, c.designEnd,   '設計終了', '設計終了');
-  addSticky(stickyMap, c.materialEnd, '資材終了', '資材終了');
-  addSticky(stickyMap, c.processEnd,  '加工終了', '加工終了');
-  addSticky(stickyMap, c.deliveryDate,'納品',     '納品');
+  addSticky(stickyMap, c.designEnd,   '設計終了', '設計終了', p.id, p.name);
+  addSticky(stickyMap, c.materialEnd, '資材終了', '資材終了', p.id, p.name);
+  addSticky(stickyMap, c.processEnd,  '加工終了', '加工終了', p.id, p.name);
+  addSticky(stickyMap, c.deliveryDate,'納品',     '納品',     p.id, p.name);
 
   const dates = [c.designEnd, c.materialEnd, c.processEnd, c.deliveryDate].filter(Boolean);
   const todayM = new Date(); todayM.setDate(1); todayM.setHours(0,0,0,0);
@@ -1514,11 +1558,10 @@ function printAllCalendar() {
 
   const stickyMap = {};
   calced.forEach(p => {
-    const n = p.name;
-    addSticky(stickyMap, p.designEnd,   n + '　設計終了', '設計終了');
-    addSticky(stickyMap, p.materialEnd, n + '　資材終了', '資材終了');
-    addSticky(stickyMap, p.processEnd,  n + '　加工終了', '加工終了');
-    addSticky(stickyMap, p.deliveryDate,n + '　納品',     '納品');
+    addSticky(stickyMap, p.designEnd,   '設計終了', '設計終了', p.id, p.name);
+    addSticky(stickyMap, p.materialEnd, '資材終了', '資材終了', p.id, p.name);
+    addSticky(stickyMap, p.processEnd,  '加工終了', '加工終了', p.id, p.name);
+    addSticky(stickyMap, p.deliveryDate,'納品',     '納品',     p.id, p.name);
   });
 
   const allDates = calced.flatMap(p => [p.designEnd, p.materialEnd, p.processEnd, p.deliveryDate]).filter(Boolean);
