@@ -1387,29 +1387,41 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
   while (cur <= endM) { months.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
 
   let html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>${title}</title>
   <style>
     @page { size: A4 landscape; margin: 8mm; }
-    body { font-family:'Hiragino Sans','Meiryo',sans-serif; font-size:9px; margin:0; }
-    .print-btn { padding:5px 14px;background:#2c6fad;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px; }
-    @media print { .print-btn,.no-print{display:none} .month{page-break-after:always} .month:last-child{page-break-after:avoid} }
-    .month { margin-bottom:12px; }
-    .month-title { font-size:20px;font-weight:bold;margin-bottom:4px; }
+    * { box-sizing:border-box; }
+    body { font-family:'Hiragino Sans','Meiryo',sans-serif; font-size:9px; margin:0; padding:8px; background:#f7f9fc; }
+    .print-btn { padding:6px 16px;background:#2c6fad;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px; }
+    @media print { .print-btn,.no-print{display:none} .month{page-break-after:always} .month:last-child{page-break-after:avoid} body{background:#fff;padding:0} .month{box-shadow:none;border-radius:0} }
+    .month { margin-bottom:14px;background:#fff;border-radius:8px;padding:10px;box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+    .month-header { display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap; }
+    .month-title { font-size:20px;font-weight:bold; }
+    .legend { display:flex;gap:6px;align-items:center;flex-wrap:wrap; }
+    .legend-item { display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;
+      padding:2px 6px 2px 4px;border-radius:3px;border-left:4px solid;white-space:nowrap; }
     table { width:100%;border-collapse:collapse;table-layout:fixed; }
-    th { text-align:center;padding:4px;border:1px solid #bbb;background:#f0f0f0;font-size:12px; }
+    th { text-align:center;padding:4px 2px;border:1px solid #bbb;background:#f0f0f0;font-size:11px; }
     th.sun{color:#e74c3c} th.sat{color:#2980b9}
-    td { vertical-align:top;border:1px solid #bbb;height:90px;padding:3px;background:#fff; }
-    td.other{background:#f5f5f5} td.is-today{background:#fffde7}
+    td { vertical-align:top;border:1px solid #ddd;height:90px;padding:3px;background:#fff; }
+    td.other{background:#f9f9f9} td.is-today{background:#fffde7}
     .dn { font-size:13px;font-weight:bold;margin-bottom:3px; }
     .dn.sun,.dn.hol{color:#e74c3c} .dn.sat{color:#2980b9}
     .sticky { font-size:8px;font-weight:700;padding:2px 5px 2px 4px;border-radius:2px;margin-bottom:2px;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;
       box-shadow:1px 1px 3px rgba(0,0,0,0.18);border-left:4px solid; }
-    .month-header { display:flex;align-items:center;gap:16px;margin-bottom:5px;flex-wrap:wrap; }
-    .month-title { font-size:20px;font-weight:bold; }
-    .legend { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
-    .legend-item { display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;
-      padding:2px 6px 2px 4px;border-radius:3px;border-left:4px solid;white-space:nowrap; }
+    @media screen and (max-width:640px) {
+      body { padding:4px; }
+      .month { padding:8px 5px; }
+      .month-title { font-size:15px; }
+      .legend-item { font-size:7px;padding:1px 4px 1px 3px; }
+      th { font-size:9px;padding:3px 1px; }
+      td { height:60px;padding:2px; }
+      .dn { font-size:10px;margin-bottom:1px; }
+      .sticky { font-size:6px;padding:1px 3px;border-left-width:3px;margin-bottom:1px; }
+      .print-btn { font-size:12px;padding:5px 12px; }
+    }
   </style></head><body>
   <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <div style="font-size:15px;font-weight:bold">城東機械　${title}</div>
