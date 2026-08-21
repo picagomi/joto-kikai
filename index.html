@@ -374,8 +374,9 @@
   .cal-table { width:100%;border-collapse:collapse;table-layout:fixed; }
   .cal-table th { text-align:center;padding:4px 2px;border:1px solid #bbb;background:#f0f0f0;font-size:11px; }
   .cal-table th.cal-sun{color:#e74c3c} .cal-table th.cal-sat{color:#2980b9}
-  .cal-table td { vertical-align:top;border:1px solid #ddd;height:90px;padding:3px;background:#fff; }
+  .cal-table td { vertical-align:top;border:1px solid #ddd;height:90px;padding:0;background:#fff; }
   .cal-table td.cal-other{background:#f9f9f9} .cal-table td.cal-today{background:#fffde7}
+  .cal-cell-inner { height:90px;overflow:hidden;padding:3px; }
   .cal-dn { font-size:13px;font-weight:bold;margin-bottom:3px; }
   .cal-dn.cal-sun,.cal-dn.cal-hol{color:#e74c3c} .cal-dn.cal-sat{color:#2980b9}
   .cal-sticky { font-size:8px;font-weight:700;padding:2px 5px 2px 4px;border-radius:2px;margin-bottom:2px;
@@ -386,7 +387,8 @@
     .cal-month-title { font-size:15px; }
     .cal-legend-item { font-size:7px;padding:1px 4px 1px 3px; }
     .cal-table th { font-size:9px;padding:3px 1px; }
-    .cal-table td { height:60px;padding:2px; }
+    .cal-table td { height:60px; }
+    .cal-cell-inner { height:60px;padding:2px; }
     .cal-dn { font-size:10px;margin-bottom:1px; }
     .cal-sticky { font-size:6px;padding:1px 3px;border-left-width:3px;margin-bottom:1px; }
   }
@@ -1512,7 +1514,7 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
         const safeName = fullName.replace(/'/g, "\\'");
         return `<span class="cal-sticky" style="background:${s.bg};border-color:${s.border};cursor:pointer" onclick="event.stopPropagation();openStickyPopup(event,'${pid}','${safeName}','${safePhase}')">${s.icon} ${short}</span>`;
       }).join('');
-      body += `<td class="${isToday?'cal-today':''}"><div class="cal-dn ${dnCls}">${day}</div>${stickers}</td>`;
+      body += `<td class="${isToday?'cal-today':''}"><div class="cal-cell-inner"><div class="cal-dn ${dnCls}">${day}</div>${stickers}</div></td>`;
       if (dow === 6 && day < daysInMonth) body += '</tr><tr>';
     }
     const lastDow = new Date(y, m, daysInMonth).getDay();
