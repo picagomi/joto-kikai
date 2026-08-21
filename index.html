@@ -382,9 +382,12 @@
   .cal-sticky { pointer-events:none; }
   .cal-dn { font-size:13px;font-weight:bold;margin-bottom:3px; }
   .cal-dn.cal-sun,.cal-dn.cal-hol{color:#e74c3c} .cal-dn.cal-sat{color:#2980b9}
-  .cal-sticky { font-size:8px;font-weight:700;padding:2px 5px 2px 4px;border-radius:2px;margin-bottom:2px;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;
-    box-shadow:1px 1px 3px rgba(0,0,0,0.15);border-left:4px solid; }
+  .cal-sticky { padding:3px 5px 3px 4px;border-radius:2px;margin-bottom:3px;display:block;
+    box-shadow:1px 1px 3px rgba(0,0,0,0.15);overflow-wrap:break-word;word-break:break-word;
+    background:#FFE066 !important;border-left:4px solid #d9a800 !important;color:#222 !important; }
+  .cal-sticky-cmt { font-size:9px;font-weight:700;line-height:1.3;margin-bottom:1px; }
+  .cal-sticky-prj { font-size:8px;font-weight:500;line-height:1.3;color:#5c4a00; }
+  .cal-legend-item { background:#FFE066 !important;border-color:#d9a800 !important;color:#222; }
   @media screen and (max-width:640px) {
     .cal-month { padding:8px 5px; }
     .cal-month-title { font-size:15px; }
@@ -393,7 +396,9 @@
     .cal-table td { height:auto;min-height:60px; }
     .cal-cell-inner { min-height:60px;padding:2px; }
     .cal-dn { font-size:10px;margin-bottom:1px; }
-    .cal-sticky { font-size:6px;padding:1px 3px;border-left-width:3px;margin-bottom:1px; }
+    .cal-sticky { padding:2px 3px;border-left-width:3px;margin-bottom:2px; }
+    .cal-sticky-cmt { font-size:7px; }
+    .cal-sticky-prj { font-size:6px; }
   }
   @media print {
     body > *:not(#calendarOverlay) { display: none !important; }
@@ -1432,29 +1437,22 @@ function updatePreview() {
 
 let _calStickyMap = {};
 
-const CAL_PHASE_STYLE = {
-  '設計終了':  { bg:'#BDD7EE', border:'#7baed4', icon:'🔵' },
-  '資材終了':  { bg:'#C6EFCE', border:'#82c991', icon:'🟢' },
-  '加工終了':  { bg:'#FFEB9C', border:'#f0c419', icon:'🟡' },
-  '納品':      { bg:'#FFC7CE', border:'#e0808c', icon:'🏁' },
-};
-
-// 日付セルタップ → その日の受注品名一覧
+// 日付セルタップ → その日のコメント一覧
 function openDayModal(dateStr) {
   const items = _calStickyMap[dateStr] || [];
   if (!items.length) return;
   document.getElementById('calDayTitle').textContent = formatDateJP(parseDate(dateStr));
-  document.getElementById('calDayList').innerHTML = items.map(({ label, phase, pid, fullName }) => {
-    const s = CAL_PHASE_STYLE[phase] || { bg:'#eee', border:'#ccc', icon:'📌' };
-    return `<div onclick="editFromDayModal('${pid}')" style="display:flex;align-items:flex-start;gap:8px;padding:9px 8px;border-radius:6px;cursor:pointer;border-bottom:1px solid #f0f0f0"
+  document.getElementById('calDayList').innerHTML = items.map(({ comment, pid, projectName }) =>
+    `<div onclick="editFromDayModal('${pid}')" style="display:flex;align-items:flex-start;gap:8px;padding:9px 8px;border-radius:6px;cursor:pointer;border-bottom:1px solid #f0f0f0"
       onmouseover="this.style.background='#f4f8fd'" onmouseout="this.style.background=''">
-      <span style="flex-shrink:0;font-size:9px;font-weight:700;padding:3px 6px;border-radius:3px;border-left:4px solid ${s.border};background:${s.bg};white-space:nowrap">${s.icon} ${escHtml(label)}</span>
-      <span style="flex:1;font-size:13px;font-weight:600;line-height:1.4;word-break:break-all">${escHtml(fullName)}</span>
-      <span style="flex-shrink:0;color:#bbb;font-size:14px">›</span>
-    </div>`;
-  }).join('');
-  const modal = document.getElementById('calDayModal');
-  modal.style.display = 'flex';
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;line-height:1.4;word-break:break-word;margin-bottom:3px">💬 ${escHtml(comment)}</div>
+        <div style="font-size:11px;color:#777;line-height:1.4;word-break:break-all">${escHtml(projectName)}</div>
+      </div>
+      <span style="flex-shrink:0;color:#bbb;font-size:14px;align-self:center">›</span>
+    </div>`
+  ).join('');
+  document.getElementById('calDayModal').style.display = 'flex';
 }
 
 function closeDayModal() {
@@ -1491,10 +1489,7 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
   while (cur <= endM) { months.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
 
   _calStickyMap = stickyMap;
-  const PHASE_STYLE = CAL_PHASE_STYLE;
-  const legendHTML = Object.entries(PHASE_STYLE).map(([k,s])=>
-    `<span class="cal-legend-item" style="background:${s.bg};border-color:${s.border}">${s.icon} ${k}</span>`
-  ).join('');
+  const legendHTML = `<span class="cal-legend-item">💬 日付コメント</span>`;
 
   let body = '';
   months.forEach(ms => {
@@ -1513,11 +1508,12 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
       const dnCls = (dow===0||isHoli) ? 'cal-sun' : (dow===6 ? 'cal-sat' : '');
       const key = formatDate(date);
       const dayItems = stickyMap[key] || [];
-      const stickers = dayItems.map(({ phase, fullName }) => {
-        const s = PHASE_STYLE[phase] || { bg:'#eee', border:'#ccc', icon:'📌' };
-        const short = fullName.length > 10 ? fullName.substring(0,10)+'…' : fullName;
-        return `<span class="cal-sticky" style="background:${s.bg};border-color:${s.border}">${s.icon} ${escHtml(short)}</span>`;
-      }).join('');
+      const stickers = dayItems.map(({ comment, projectName }) =>
+        `<div class="cal-sticky">
+          <div class="cal-sticky-cmt">💬 ${escHtml(comment)}</div>
+          <div class="cal-sticky-prj">${escHtml(projectName)}</div>
+        </div>`
+      ).join('');
       const tapAttr = dayItems.length
         ? ` class="${isToday?'cal-today ':''}cal-tappable" onclick="openDayModal('${key}')"`
         : ` class="${isToday?'cal-today':''}"`;
@@ -1531,55 +1527,54 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
   return body;
 }
 
-function addSticky(map, date, label, phase, pid, fullName) {
-  if (!date) return;
-  const key = formatDate(date);
-  if (!map[key]) map[key] = [];
-  map[key].push({ label, phase, pid: pid || '', fullName: fullName || label });
+// 案件の日付コメントを stickyMap へ集約
+function collectComments(map, p) {
+  const dc = p.dateComments || {};
+  Object.keys(dc).forEach(dateStr => {
+    getCommentArray(dc[dateStr]).forEach(comment => {
+      if (!map[dateStr]) map[dateStr] = [];
+      map[dateStr].push({ comment, pid: p.id, projectName: p.name });
+    });
+  });
 }
 
-// 案件別カレンダー印刷
+// stickyMap の日付範囲を求める（当月開始）
+function calcCommentRange(stickyMap) {
+  const keys = Object.keys(stickyMap);
+  if (!keys.length) return null;
+  const dates = keys.map(k => parseDate(k)).filter(Boolean);
+  if (!dates.length) return null;
+  const minDate = new Date(); minDate.setDate(1); minDate.setHours(0,0,0,0);
+  let maxDate = dates.reduce((m, d) => d > m ? d : m, dates[0]);
+  if (maxDate < minDate) maxDate = minDate;
+  return { minDate, maxDate };
+}
+
+// 案件別コメントカレンダー
 function printProjectCalendar(id) {
   const p = projects.find(x => x.id === id);
   if (!p) return;
-  const c = calcProject(p);
-  if (!c.deliveryDate) { alert('納品日が設定されていません'); return; }
 
   const stickyMap = {};
-  addSticky(stickyMap, c.designEnd,   '設計終了', '設計終了', p.id, p.name);
-  addSticky(stickyMap, c.materialEnd, '資材終了', '資材終了', p.id, p.name);
-  addSticky(stickyMap, c.processEnd,  '加工終了', '加工終了', p.id, p.name);
-  addSticky(stickyMap, c.deliveryDate,'納品',     '納品',     p.id, p.name);
+  collectComments(stickyMap, p);
 
-  const dates = [c.designEnd, c.materialEnd, c.processEnd, c.deliveryDate].filter(Boolean);
-  const todayM = new Date(); todayM.setDate(1); todayM.setHours(0,0,0,0);
-  const minDate = todayM;
-  const maxDate = dates[dates.length - 1];
+  const range = calcCommentRange(stickyMap);
+  if (!range) { alert('この案件には日付コメントがありません'); return; }
 
-  const body = buildCalendarHTML(`${p.name}　工程カレンダー`, stickyMap, minDate, maxDate);
-  showCalendarOverlay(`${p.name}　工程カレンダー`, body);
+  const title = `${p.name}　コメントカレンダー`;
+  showCalendarOverlay(title, buildCalendarHTML(title, stickyMap, range.minDate, range.maxDate));
 }
 
-// 全案件まとめカレンダー印刷
+// 全案件まとめコメントカレンダー
 function printAllCalendar() {
-  const calced = projects.map(calcProject).filter(p => p.deliveryDate);
-  if (!calced.length) { alert('表示できる案件がありません'); return; }
-
   const stickyMap = {};
-  calced.forEach(p => {
-    addSticky(stickyMap, p.designEnd,   '設計終了', '設計終了', p.id, p.name);
-    addSticky(stickyMap, p.materialEnd, '資材終了', '資材終了', p.id, p.name);
-    addSticky(stickyMap, p.processEnd,  '加工終了', '加工終了', p.id, p.name);
-    addSticky(stickyMap, p.deliveryDate,'納品',     '納品',     p.id, p.name);
-  });
+  projects.forEach(p => collectComments(stickyMap, p));
 
-  const allDates = calced.flatMap(p => [p.designEnd, p.materialEnd, p.processEnd, p.deliveryDate]).filter(Boolean);
-  const todayM2 = new Date(); todayM2.setDate(1); todayM2.setHours(0,0,0,0);
-  const minDate = todayM2;
-  const maxDate = allDates.reduce((m, d) => d > m ? d : m, allDates[0]);
+  const range = calcCommentRange(stickyMap);
+  if (!range) { alert('日付コメントが登録されていません'); return; }
 
-  const body = buildCalendarHTML('工程カレンダー（全案件）', stickyMap, minDate, maxDate);
-  showCalendarOverlay('工程カレンダー（全案件）', body);
+  const title = 'コメントカレンダー（全案件）';
+  showCalendarOverlay(title, buildCalendarHTML(title, stickyMap, range.minDate, range.maxDate));
 }
 
 function formatAmountInput(el) {
