@@ -379,6 +379,7 @@
   <span id="syncBadge" style="background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;font-size:11px;display:none"></span>
   <div class="header-actions">
     <button class="btn btn-success" onclick="openAddModal()">＋ 受注追加</button>
+    <button class="btn btn-ghost" onclick="printAllCalendar()">📅 カレンダー</button>
     <button class="btn btn-ghost" onclick="exportData()">📥 エクスポート</button>
     <button class="btn btn-ghost" onclick="toggleArchive()">📦 アーカイブ<span id="archiveBadge" style="display:none" class="archive-badge"></span></button>
     <button class="btn btn-ghost" onclick="toggleTrash()">🗑 ゴミ箱<span id="trashBadge" style="display:none" class="trash-badge"></span></button>
@@ -1366,6 +1367,99 @@ function updatePreview() {
   document.getElementById('pv_process').textContent = formatDateJP(c.processEnd);
   document.getElementById('pv_phase').textContent = c.currentPhase;
   document.getElementById('pv_progress').textContent = Math.round(c.progress*100) + '%';
+}
+
+function printAllCalendar() {
+  const calced = projects.map(calcProject).filter(p => p.startDate && p.deliveryDate);
+  if (!calced.length) { alert('表示できる案件がありません'); return; }
+
+  let minDate = calced.reduce((m, p) => p.startDate < m ? p.startDate : m, calced[0].startDate);
+  let maxDate = calced.reduce((m, p) => p.deliveryDate > m ? p.deliveryDate : m, calced[0].deliveryDate);
+
+  const phaseColor = { '設計':'#BDD7EE', '資材':'#C6EFCE', '加工':'#FFEB9C', '組立':'#FFC7CE' };
+
+  function getPhase(p, date) {
+    const dt = date.getTime();
+    if (dt < p.startDate.getTime() || dt > p.deliveryDate.getTime()) return null;
+    if (p.designEnd  && dt <= p.designEnd.getTime())  return '設計';
+    if (p.materialEnd && dt <= p.materialEnd.getTime()) return '資材';
+    if (p.processEnd && dt <= p.processEnd.getTime())  return '加工';
+    return '組立';
+  }
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const DAY_NAMES = ['日','月','火','水','木','金','土'];
+
+  let months = [];
+  let cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+  const endM = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+  while (cur <= endM) { months.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
+
+  let html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+  <title>工程カレンダー</title>
+  <style>
+    @page { size: A4 landscape; margin: 8mm; }
+    body { font-family:'Hiragino Sans','Meiryo',sans-serif; font-size:9px; margin:0; }
+    .print-btn { padding:5px 14px;background:#2c6fad;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px; }
+    @media print { .print-btn,.no-print { display:none; } .month { page-break-after:always; } .month:last-child { page-break-after:avoid; } }
+    .month { margin-bottom:12px; }
+    .month-title { font-size:18px;font-weight:bold;margin-bottom:4px; }
+    table { width:100%;border-collapse:collapse;table-layout:fixed; }
+    th { text-align:center;padding:3px;border:1px solid #bbb;background:#f0f0f0;font-size:11px; }
+    th.sun { color:#e74c3c; } th.sat { color:#2980b9; }
+    td { vertical-align:top;border:1px solid #bbb;height:72px;padding:2px;background:#fff; }
+    td.other { background:#f5f5f5; } td.is-today { background:#fffde7; }
+    .dn { font-size:12px;font-weight:bold;margin-bottom:2px; }
+    .dn.sun,.dn.hol { color:#e74c3c; } .dn.sat { color:#2980b9; }
+    .chip { font-size:7px;padding:1px 3px;border-radius:2px;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;border:1px solid rgba(0,0,0,0.1); }
+    .legend { display:flex;gap:14px;margin-bottom:6px;font-size:10px;align-items:center; }
+    .lc { width:14px;height:10px;border-radius:2px;border:1px solid #ccc;display:inline-block;vertical-align:middle;margin-right:3px; }
+  </style></head><body>
+  <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div style="font-size:14px;font-weight:bold">城東機械　工程カレンダー</div>
+    <button class="print-btn" onclick="window.print()">🖨 印刷</button>
+  </div>
+  <div class="legend">
+    <span><span class="lc" style="background:#BDD7EE"></span>設計</span>
+    <span><span class="lc" style="background:#C6EFCE"></span>資材</span>
+    <span><span class="lc" style="background:#FFEB9C"></span>加工</span>
+    <span><span class="lc" style="background:#FFC7CE"></span>組立</span>
+  </div>`;
+
+  months.forEach(ms => {
+    const y = ms.getFullYear(), m = ms.getMonth();
+    const firstDow = ms.getDay();
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    html += `<div class="month"><div class="month-title">${y}年${m+1}月</div>
+      <table><thead><tr>${DAY_NAMES.map((d,i)=>`<th class="${i===0?'sun':i===6?'sat':''}">${d}</th>`).join('')}</tr></thead><tbody><tr>`;
+    for (let i = 0; i < firstDow; i++) html += '<td class="other"></td>';
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(y, m, day);
+      const dow = date.getDay();
+      if (dow === 0 && day > 1) html += '</tr><tr>';
+      const isHoli = isHoliday(date);
+      const isToday = date.getTime() === today.getTime();
+      let dnCls = (dow===0||isHoli) ? 'sun' : (dow===6 ? 'sat' : '');
+      let chips = '';
+      calced.forEach(p => {
+        const phase = getPhase(p, date);
+        if (phase) {
+          const name = p.name.length > 10 ? p.name.substring(0,10)+'…' : p.name;
+          chips += `<span class="chip" style="background:${phaseColor[phase]}">${name}</span>`;
+        }
+      });
+      html += `<td class="${isToday?'is-today':''}"><div class="dn ${dnCls}">${day}</div>${chips}</td>`;
+      if (dow === 6 && day < daysInMonth) html += '</tr><tr>';
+    }
+    const lastDow = new Date(y, m, daysInMonth).getDay();
+    if (lastDow < 6) for (let i = lastDow+1; i <= 6; i++) html += '<td class="other"></td>';
+    html += '</tr></tbody></table></div>';
+  });
+
+  html += '</body></html>';
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
 }
 
 function formatAmountInput(el) {
