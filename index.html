@@ -1405,22 +1405,25 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
     .sticky { font-size:8px;font-weight:700;padding:2px 5px 2px 4px;border-radius:2px;margin-bottom:2px;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;
       box-shadow:1px 1px 3px rgba(0,0,0,0.18);border-left:4px solid; }
-    .legend { display:flex;gap:14px;margin-bottom:6px;font-size:10px;align-items:center;flex-wrap:wrap; }
-    .lc { width:28px;height:12px;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:3px;border-left:4px solid; }
+    .month-header { display:flex;align-items:center;gap:16px;margin-bottom:5px;flex-wrap:wrap; }
+    .month-title { font-size:20px;font-weight:bold; }
+    .legend { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
+    .legend-item { display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;
+      padding:2px 6px 2px 4px;border-radius:3px;border-left:4px solid;white-space:nowrap; }
   </style></head><body>
-  <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+  <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <div style="font-size:15px;font-weight:bold">城東機械　${title}</div>
     <button class="print-btn" onclick="window.print()">🖨 印刷</button>
-  </div>
-  <div class="legend">
-    ${Object.entries(PHASE_STYLE).map(([k,s])=>`<span><span class="lc" style="background:${s.bg};border-color:${s.border}"></span>${k}</span>`).join('')}
   </div>`;
 
   months.forEach(ms => {
     const y = ms.getFullYear(), m = ms.getMonth();
     const firstDow = ms.getDay();
     const daysInMonth = new Date(y, m+1, 0).getDate();
-    html += `<div class="month"><div class="month-title">${y}年&nbsp;${m+1}月</div>
+    const legendHTML = Object.entries(PHASE_STYLE).map(([k,s])=>
+      `<span class="legend-item" style="background:${s.bg};border-color:${s.border}">${s.icon} ${k}</span>`
+    ).join('');
+    html += `<div class="month"><div class="month-header"><div class="month-title">${y}年&nbsp;${m+1}月</div><div class="legend">${legendHTML}</div></div>
       <table><thead><tr>${DAY_NAMES.map((d,i)=>`<th class="${i===0?'sun':i===6?'sat':''}">${d}</th>`).join('')}</tr></thead><tbody><tr>`;
     for (let i = 0; i < firstDow; i++) html += '<td class="other"></td>';
     for (let day = 1; day <= daysInMonth; day++) {
