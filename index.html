@@ -384,10 +384,16 @@
   .cal-dn.cal-sun,.cal-dn.cal-hol{color:#e74c3c} .cal-dn.cal-sat{color:#2980b9}
   .cal-sticky { padding:3px 5px 3px 4px;border-radius:2px;margin-bottom:3px;display:block;
     box-shadow:1px 1px 3px rgba(0,0,0,0.15);overflow-wrap:break-word;word-break:break-word;
-    background:#FFE066 !important;border-left:4px solid #d9a800 !important;color:#222 !important; }
+    border-left:4px solid; }
   .cal-sticky-cmt { font-size:9px;font-weight:700;line-height:1.3;margin-bottom:1px; }
-  .cal-sticky-prj { font-size:8px;font-weight:500;line-height:1.3;color:#5c4a00; }
-  .cal-legend-item { background:#FFE066 !important;border-color:#d9a800 !important;color:#222; }
+  .cal-sticky-prj { font-size:8px;font-weight:500;line-height:1.3;opacity:0.82; }
+  /* コメント種別カラー */
+  .cal-c-blue   { background:#CFE3F5;border-left-color:#4a86b8;color:#12384f; }
+  .cal-c-pink   { background:#FBD3D9;border-left-color:#d16b78;color:#5e1a24; }
+  .cal-c-green  { background:#CFEBD5;border-left-color:#5aa96e;color:#14472a; }
+  .cal-c-yellow { background:#FFE9A3;border-left-color:#d9a800;color:#4a3800; }
+  .cal-c-blue, .cal-c-pink, .cal-c-green, .cal-c-yellow {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @media screen and (max-width:640px) {
     .cal-month { padding:8px 5px; }
     .cal-month-title { font-size:15px; }
@@ -1437,19 +1443,29 @@ function updatePreview() {
 
 let _calStickyMap = {};
 
+// コメント内容から色分けクラスを判定
+// 「納品」は完全一致のみ（「架台納品」等はその他扱い）
+function commentColorClass(comment) {
+  const c = String(comment || '').replace(/^[\s　]+|[\s　]+$/g, '');
+  if (c === '納品')           return 'cal-c-pink';
+  if (c.includes('設計完了')) return 'cal-c-blue';
+  if (c.includes('出荷'))     return 'cal-c-green';
+  return 'cal-c-yellow';
+}
+
 // 日付セルタップ → その日のコメント一覧
 function openDayModal(dateStr) {
   const items = _calStickyMap[dateStr] || [];
   if (!items.length) return;
   document.getElementById('calDayTitle').textContent = formatDateJP(parseDate(dateStr));
   document.getElementById('calDayList').innerHTML = items.map(({ comment, pid, projectName }) =>
-    `<div onclick="editFromDayModal('${pid}')" style="display:flex;align-items:flex-start;gap:8px;padding:9px 8px;border-radius:6px;cursor:pointer;border-bottom:1px solid #f0f0f0"
-      onmouseover="this.style.background='#f4f8fd'" onmouseout="this.style.background=''">
+    `<div class="${commentColorClass(comment)}" onclick="editFromDayModal('${pid}')"
+      style="display:flex;align-items:flex-start;gap:8px;padding:9px 10px;border-radius:6px;cursor:pointer;margin-bottom:6px">
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:700;line-height:1.4;word-break:break-word;margin-bottom:3px">💬 ${escHtml(comment)}</div>
-        <div style="font-size:11px;color:#777;line-height:1.4;word-break:break-all">${escHtml(projectName)}</div>
+        <div style="font-size:11px;line-height:1.4;word-break:break-all;opacity:0.8">${escHtml(projectName)}</div>
       </div>
-      <span style="flex-shrink:0;color:#bbb;font-size:14px;align-self:center">›</span>
+      <span style="flex-shrink:0;font-size:14px;align-self:center;opacity:0.5">›</span>
     </div>`
   ).join('');
   document.getElementById('calDayModal').style.display = 'flex';
@@ -1489,7 +1505,11 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
   while (cur <= endM) { months.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
 
   _calStickyMap = stickyMap;
-  const legendHTML = `<span class="cal-legend-item">💬 日付コメント</span>`;
+  const legendHTML =
+    `<span class="cal-legend-item cal-c-blue">設計完了</span>` +
+    `<span class="cal-legend-item cal-c-pink">納品</span>` +
+    `<span class="cal-legend-item cal-c-green">出荷</span>` +
+    `<span class="cal-legend-item cal-c-yellow">その他コメント</span>`;
 
   let body = '';
   months.forEach(ms => {
@@ -1509,7 +1529,7 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
       const key = formatDate(date);
       const dayItems = stickyMap[key] || [];
       const stickers = dayItems.map(({ comment, projectName }) =>
-        `<div class="cal-sticky">
+        `<div class="cal-sticky ${commentColorClass(comment)}">
           <div class="cal-sticky-cmt">💬 ${escHtml(comment)}</div>
           <div class="cal-sticky-prj">${escHtml(projectName)}</div>
         </div>`
