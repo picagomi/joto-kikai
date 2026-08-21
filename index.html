@@ -1370,22 +1370,20 @@ function updatePreview() {
 }
 
 function printAllCalendar() {
-  const calced = projects.map(calcProject).filter(p => p.startDate && p.deliveryDate);
+  const calced = projects.map(calcProject).filter(p => p.deliveryDate);
   if (!calced.length) { alert('表示できる案件がありません'); return; }
 
-  let minDate = calced.reduce((m, p) => p.startDate < m ? p.startDate : m, calced[0].startDate);
-  let maxDate = calced.reduce((m, p) => p.deliveryDate > m ? p.deliveryDate : m, calced[0].deliveryDate);
+  // 納品日でグループ化
+  const deliveryMap = {};
+  calced.forEach(p => {
+    const key = formatDate(p.deliveryDate);
+    if (!deliveryMap[key]) deliveryMap[key] = [];
+    deliveryMap[key].push(p.name);
+  });
 
-  const phaseColor = { '設計':'#BDD7EE', '資材':'#C6EFCE', '加工':'#FFEB9C', '組立':'#FFC7CE' };
-
-  function getPhase(p, date) {
-    const dt = date.getTime();
-    if (dt < p.startDate.getTime() || dt > p.deliveryDate.getTime()) return null;
-    if (p.designEnd  && dt <= p.designEnd.getTime())  return '設計';
-    if (p.materialEnd && dt <= p.materialEnd.getTime()) return '資材';
-    if (p.processEnd && dt <= p.processEnd.getTime())  return '加工';
-    return '組立';
-  }
+  const allDates = Object.keys(deliveryMap).map(s => parseDate(s));
+  let minDate = allDates.reduce((m, d) => d < m ? d : m, allDates[0]);
+  let maxDate = allDates.reduce((m, d) => d > m ? d : m, allDates[0]);
 
   const today = new Date(); today.setHours(0,0,0,0);
   const DAY_NAMES = ['日','月','火','水','木','金','土'];
@@ -1396,41 +1394,35 @@ function printAllCalendar() {
   while (cur <= endM) { months.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
 
   let html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
-  <title>工程カレンダー</title>
+  <title>納品日カレンダー</title>
   <style>
     @page { size: A4 landscape; margin: 8mm; }
     body { font-family:'Hiragino Sans','Meiryo',sans-serif; font-size:9px; margin:0; }
     .print-btn { padding:5px 14px;background:#2c6fad;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px; }
     @media print { .print-btn,.no-print { display:none; } .month { page-break-after:always; } .month:last-child { page-break-after:avoid; } }
     .month { margin-bottom:12px; }
-    .month-title { font-size:18px;font-weight:bold;margin-bottom:4px; }
+    .month-title { font-size:20px;font-weight:bold;margin-bottom:4px; }
     table { width:100%;border-collapse:collapse;table-layout:fixed; }
-    th { text-align:center;padding:3px;border:1px solid #bbb;background:#f0f0f0;font-size:11px; }
+    th { text-align:center;padding:4px;border:1px solid #bbb;background:#f0f0f0;font-size:12px; }
     th.sun { color:#e74c3c; } th.sat { color:#2980b9; }
-    td { vertical-align:top;border:1px solid #bbb;height:72px;padding:2px;background:#fff; }
+    td { vertical-align:top;border:1px solid #bbb;height:80px;padding:3px;background:#fff; }
     td.other { background:#f5f5f5; } td.is-today { background:#fffde7; }
-    .dn { font-size:12px;font-weight:bold;margin-bottom:2px; }
+    .dn { font-size:13px;font-weight:bold;margin-bottom:3px; }
     .dn.sun,.dn.hol { color:#e74c3c; } .dn.sat { color:#2980b9; }
-    .chip { font-size:7px;padding:1px 3px;border-radius:2px;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;border:1px solid rgba(0,0,0,0.1); }
-    .legend { display:flex;gap:14px;margin-bottom:6px;font-size:10px;align-items:center; }
-    .lc { width:14px;height:10px;border-radius:2px;border:1px solid #ccc;display:inline-block;vertical-align:middle;margin-right:3px; }
+    .deadline { font-size:8px;font-weight:700;padding:2px 4px;border-radius:3px;margin-bottom:2px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;
+      background:#e74c3c;color:#fff;border-left:3px solid #c0392b; }
   </style></head><body>
-  <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-    <div style="font-size:14px;font-weight:bold">城東機械　工程カレンダー</div>
+  <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div style="font-size:15px;font-weight:bold">城東機械　納品日カレンダー</div>
     <button class="print-btn" onclick="window.print()">🖨 印刷</button>
-  </div>
-  <div class="legend">
-    <span><span class="lc" style="background:#BDD7EE"></span>設計</span>
-    <span><span class="lc" style="background:#C6EFCE"></span>資材</span>
-    <span><span class="lc" style="background:#FFEB9C"></span>加工</span>
-    <span><span class="lc" style="background:#FFC7CE"></span>組立</span>
   </div>`;
 
   months.forEach(ms => {
     const y = ms.getFullYear(), m = ms.getMonth();
     const firstDow = ms.getDay();
     const daysInMonth = new Date(y, m+1, 0).getDate();
-    html += `<div class="month"><div class="month-title">${y}年${m+1}月</div>
+    html += `<div class="month"><div class="month-title">${y}年&nbsp;${m+1}月</div>
       <table><thead><tr>${DAY_NAMES.map((d,i)=>`<th class="${i===0?'sun':i===6?'sat':''}">${d}</th>`).join('')}</tr></thead><tbody><tr>`;
     for (let i = 0; i < firstDow; i++) html += '<td class="other"></td>';
     for (let day = 1; day <= daysInMonth; day++) {
@@ -1439,16 +1431,14 @@ function printAllCalendar() {
       if (dow === 0 && day > 1) html += '</tr><tr>';
       const isHoli = isHoliday(date);
       const isToday = date.getTime() === today.getTime();
-      let dnCls = (dow===0||isHoli) ? 'sun' : (dow===6 ? 'sat' : '');
-      let chips = '';
-      calced.forEach(p => {
-        const phase = getPhase(p, date);
-        if (phase) {
-          const name = p.name.length > 10 ? p.name.substring(0,10)+'…' : p.name;
-          chips += `<span class="chip" style="background:${phaseColor[phase]}">${name}</span>`;
-        }
-      });
-      html += `<td class="${isToday?'is-today':''}"><div class="dn ${dnCls}">${day}</div>${chips}</td>`;
+      const dnCls = (dow===0||isHoli) ? 'sun' : (dow===6 ? 'sat' : '');
+      const key = formatDate(date);
+      const names = deliveryMap[key] || [];
+      const deadlineHTML = names.map(name => {
+        const label = name.length > 14 ? name.substring(0,14)+'…' : name;
+        return `<span class="deadline" title="${name}">🏁 ${label}</span>`;
+      }).join('');
+      html += `<td class="${isToday?'is-today':''}"><div class="dn ${dnCls}">${day}</div>${deadlineHTML}</td>`;
       if (dow === 6 && day < daysInMonth) html += '</tr><tr>';
     }
     const lastDow = new Date(y, m, daysInMonth).getDay();
