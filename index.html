@@ -377,6 +377,9 @@
   .cal-table td { vertical-align:top;border:1px solid #ddd;height:90px;padding:0;background:#fff; }
   .cal-table td.cal-other{background:#f9f9f9} .cal-table td.cal-today{background:#fffde7}
   .cal-cell-inner { min-height:90px;padding:3px; }
+  .cal-table td.cal-tappable { cursor:pointer; }
+  .cal-table td.cal-tappable:hover { background:#eef4fb; }
+  .cal-sticky { pointer-events:none; }
   .cal-dn { font-size:13px;font-weight:bold;margin-bottom:3px; }
   .cal-dn.cal-sun,.cal-dn.cal-hol{color:#e74c3c} .cal-dn.cal-sat{color:#2980b9}
   .cal-sticky { font-size:8px;font-weight:700;padding:2px 5px 2px 4px;border-radius:2px;margin-bottom:2px;
@@ -548,12 +551,14 @@
   </div>
   <div id="calOverlayBody" style="padding:10px"></div>
 </div>
-<div id="calStickyPopup" style="display:none;position:fixed;z-index:600;background:#fff;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,0.25);padding:14px 16px;max-width:280px;width:90%">
-  <div id="calStickyPhase" style="font-size:10px;font-weight:700;margin-bottom:4px;color:#666"></div>
-  <div id="calStickyName" style="font-size:14px;font-weight:700;margin-bottom:12px;line-height:1.4;word-break:break-all"></div>
-  <div style="display:flex;gap:8px">
-    <button onclick="goToEditFromCalendar()" style="flex:1;background:#2c6fad;color:#fff;border:none;border-radius:6px;padding:8px;font-size:13px;cursor:pointer">✏️ 編集画面へ</button>
-    <button onclick="closeStickyPopup()" style="background:#f0f0f0;border:none;border-radius:6px;padding:8px 12px;font-size:13px;cursor:pointer">✕</button>
+<div id="calDayModal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:600;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeDayModal()">
+  <div style="background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.3);width:100%;max-width:400px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#2c6fad;color:#fff;flex-shrink:0">
+      <div id="calDayTitle" style="font-size:15px;font-weight:700"></div>
+      <button onclick="closeDayModal()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:5px;padding:4px 10px;font-size:13px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:6px 10px 4px;font-size:11px;color:#888;flex-shrink:0">タップすると受注編集画面が開きます</div>
+    <div id="calDayList" style="overflow-y:auto;padding:6px 10px 12px"></div>
   </div>
 </div>
 
@@ -1425,53 +1430,46 @@ function updatePreview() {
   document.getElementById('pv_progress').textContent = Math.round(c.progress*100) + '%';
 }
 
-let _calStickyPid = null;
+let _calStickyMap = {};
 
-function openStickyPopup(e, pid, fullName, phase) {
-  _calStickyPid = pid;
-  document.getElementById('calStickyPhase').textContent = phase;
-  document.getElementById('calStickyName').textContent = fullName;
-  const popup = document.getElementById('calStickyPopup');
-  popup.style.display = 'block';
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const pw = Math.min(280, vw * 0.9);
-  popup.style.width = pw + 'px';
+const CAL_PHASE_STYLE = {
+  '設計終了':  { bg:'#BDD7EE', border:'#7baed4', icon:'🔵' },
+  '資材終了':  { bg:'#C6EFCE', border:'#82c991', icon:'🟢' },
+  '加工終了':  { bg:'#FFEB9C', border:'#f0c419', icon:'🟡' },
+  '納品':      { bg:'#FFC7CE', border:'#e0808c', icon:'🏁' },
+};
 
-  // タップした付箋のRect取得
-  const rect = e.currentTarget.getBoundingClientRect
-    ? e.currentTarget.getBoundingClientRect()
-    : { top: e.clientY, bottom: e.clientY, left: e.clientX, right: e.clientX };
-  const popH = popup.offsetHeight || 120;
-
-  // 付箋の下に十分スペースがあれば下、なければ上に表示
-  let top = rect.bottom + 8;
-  if (top + popH > vh - 8) top = rect.top - popH - 8;
-  if (top < 8) top = 8;
-
-  let left = rect.left;
-  if (left + pw > vw - 8) left = vw - pw - 8;
-  if (left < 8) left = 8;
-
-  popup.style.left = left + 'px';
-  popup.style.top = top + 'px';
+// 日付セルタップ → その日の受注品名一覧
+function openDayModal(dateStr) {
+  const items = _calStickyMap[dateStr] || [];
+  if (!items.length) return;
+  document.getElementById('calDayTitle').textContent = formatDateJP(parseDate(dateStr));
+  document.getElementById('calDayList').innerHTML = items.map(({ label, phase, pid, fullName }) => {
+    const s = CAL_PHASE_STYLE[phase] || { bg:'#eee', border:'#ccc', icon:'📌' };
+    return `<div onclick="editFromDayModal('${pid}')" style="display:flex;align-items:flex-start;gap:8px;padding:9px 8px;border-radius:6px;cursor:pointer;border-bottom:1px solid #f0f0f0"
+      onmouseover="this.style.background='#f4f8fd'" onmouseout="this.style.background=''">
+      <span style="flex-shrink:0;font-size:9px;font-weight:700;padding:3px 6px;border-radius:3px;border-left:4px solid ${s.border};background:${s.bg};white-space:nowrap">${s.icon} ${escHtml(label)}</span>
+      <span style="flex:1;font-size:13px;font-weight:600;line-height:1.4;word-break:break-all">${escHtml(fullName)}</span>
+      <span style="flex-shrink:0;color:#bbb;font-size:14px">›</span>
+    </div>`;
+  }).join('');
+  const modal = document.getElementById('calDayModal');
+  modal.style.display = 'flex';
 }
 
-function closeStickyPopup() {
-  document.getElementById('calStickyPopup').style.display = 'none';
-  _calStickyPid = null;
+function closeDayModal() {
+  document.getElementById('calDayModal').style.display = 'none';
 }
 
-function goToEditFromCalendar() {
-  if (!_calStickyPid) return;
-  const pid = _calStickyPid;
-  closeStickyPopup();
+function editFromDayModal(pid) {
+  closeDayModal();
   closeCalendarOverlay();
   openEditModal(pid);
 }
 
 function closeCalendarOverlay() {
   document.getElementById('calendarOverlay').style.display = 'none';
-  closeStickyPopup();
+  closeDayModal();
 }
 
 function showCalendarOverlay(title, bodyHTML) {
@@ -1492,12 +1490,8 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
   const endM = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
   while (cur <= endM) { months.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
 
-  const PHASE_STYLE = {
-    '設計終了':  { bg:'#BDD7EE', border:'#7baed4', icon:'🔵' },
-    '資材終了':  { bg:'#C6EFCE', border:'#82c991', icon:'🟢' },
-    '加工終了':  { bg:'#FFEB9C', border:'#f0c419', icon:'🟡' },
-    '納品':      { bg:'#FFC7CE', border:'#e0808c', icon:'🏁' },
-  };
+  _calStickyMap = stickyMap;
+  const PHASE_STYLE = CAL_PHASE_STYLE;
   const legendHTML = Object.entries(PHASE_STYLE).map(([k,s])=>
     `<span class="cal-legend-item" style="background:${s.bg};border-color:${s.border}">${s.icon} ${k}</span>`
   ).join('');
@@ -1518,14 +1512,16 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
       const isToday = date.getTime() === today.getTime();
       const dnCls = (dow===0||isHoli) ? 'cal-sun' : (dow===6 ? 'cal-sat' : '');
       const key = formatDate(date);
-      const stickers = (stickyMap[key] || []).map(({ label, phase, pid, fullName }) => {
+      const dayItems = stickyMap[key] || [];
+      const stickers = dayItems.map(({ phase, fullName }) => {
         const s = PHASE_STYLE[phase] || { bg:'#eee', border:'#ccc', icon:'📌' };
         const short = fullName.length > 10 ? fullName.substring(0,10)+'…' : fullName;
-        const safePhase = label.replace(/'/g, "\\'");
-        const safeName = fullName.replace(/'/g, "\\'");
-        return `<span class="cal-sticky" style="background:${s.bg};border-color:${s.border};cursor:pointer" onclick="event.stopPropagation();openStickyPopup(event,'${pid}','${safeName}','${safePhase}')">${s.icon} ${short}</span>`;
+        return `<span class="cal-sticky" style="background:${s.bg};border-color:${s.border}">${s.icon} ${escHtml(short)}</span>`;
       }).join('');
-      body += `<td class="${isToday?'cal-today':''}"><div class="cal-cell-inner"><div class="cal-dn ${dnCls}">${day}</div>${stickers}</div></td>`;
+      const tapAttr = dayItems.length
+        ? ` class="${isToday?'cal-today ':''}cal-tappable" onclick="openDayModal('${key}')"`
+        : ` class="${isToday?'cal-today':''}"`;
+      body += `<td${tapAttr}><div class="cal-cell-inner"><div class="cal-dn ${dnCls}">${day}</div>${stickers}</div></td>`;
       if (dow === 6 && day < daysInMonth) body += '</tr><tr>';
     }
     const lastDow = new Date(y, m, daysInMonth).getDay();
