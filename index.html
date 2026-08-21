@@ -536,7 +536,7 @@
 <div class="toast" id="toast"></div>
 
 <!-- Gantt Memo Tooltip -->
-<div id="calendarOverlay" style="display:none;position:fixed;inset:0;z-index:500;background:#f7f9fc;overflow-y:auto">
+<div id="calendarOverlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:500;background:#f7f9fc;overflow-y:scroll;-webkit-overflow-scrolling:touch">
   <div style="position:sticky;top:0;z-index:10;background:#2c6fad;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;box-shadow:0 2px 6px rgba(0,0,0,0.2)">
     <div id="calOverlayTitle" style="font-size:15px;font-weight:700">工程カレンダー</div>
     <div style="display:flex;gap:8px">
@@ -1417,15 +1417,14 @@ function updatePreview() {
 
 function closeCalendarOverlay() {
   document.getElementById('calendarOverlay').style.display = 'none';
-  document.body.style.overflow = '';
 }
 
 function showCalendarOverlay(title, bodyHTML) {
   document.getElementById('calOverlayTitle').textContent = '城東機械　' + title;
   document.getElementById('calOverlayBody').innerHTML = bodyHTML;
-  document.getElementById('calendarOverlay').style.display = 'block';
-  document.getElementById('calendarOverlay').scrollTop = 0;
-  document.body.style.overflow = 'hidden';
+  const ov = document.getElementById('calendarOverlay');
+  ov.style.display = 'block';
+  ov.scrollTop = 0;
 }
 
 // 共通カレンダーHTML生成（オーバーレイ用）
