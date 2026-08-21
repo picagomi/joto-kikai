@@ -363,6 +363,40 @@
     .summary { grid-template-columns: repeat(3, 1fr); }
     .summary-card .value { font-size: 18px; }
   }
+  /* カレンダーオーバーレイ本体スタイル */
+  #calOverlayBody { font-family:'Hiragino Sans','Meiryo',sans-serif; }
+  .cal-month { margin-bottom:14px;background:#fff;border-radius:8px;padding:10px;box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+  .cal-month-header { display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap; }
+  .cal-month-title { font-size:20px;font-weight:bold; }
+  .cal-legend { display:flex;gap:5px;align-items:center;flex-wrap:wrap; }
+  .cal-legend-item { display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;
+    padding:2px 6px 2px 4px;border-radius:3px;border-left:4px solid;white-space:nowrap; }
+  .cal-table { width:100%;border-collapse:collapse;table-layout:fixed; }
+  .cal-table th { text-align:center;padding:4px 2px;border:1px solid #bbb;background:#f0f0f0;font-size:11px; }
+  .cal-table th.cal-sun{color:#e74c3c} .cal-table th.cal-sat{color:#2980b9}
+  .cal-table td { vertical-align:top;border:1px solid #ddd;height:90px;padding:3px;background:#fff; }
+  .cal-table td.cal-other{background:#f9f9f9} .cal-table td.cal-today{background:#fffde7}
+  .cal-dn { font-size:13px;font-weight:bold;margin-bottom:3px; }
+  .cal-dn.cal-sun,.cal-dn.cal-hol{color:#e74c3c} .cal-dn.cal-sat{color:#2980b9}
+  .cal-sticky { font-size:8px;font-weight:700;padding:2px 5px 2px 4px;border-radius:2px;margin-bottom:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;
+    box-shadow:1px 1px 3px rgba(0,0,0,0.15);border-left:4px solid; }
+  @media screen and (max-width:640px) {
+    .cal-month { padding:8px 5px; }
+    .cal-month-title { font-size:15px; }
+    .cal-legend-item { font-size:7px;padding:1px 4px 1px 3px; }
+    .cal-table th { font-size:9px;padding:3px 1px; }
+    .cal-table td { height:60px;padding:2px; }
+    .cal-dn { font-size:10px;margin-bottom:1px; }
+    .cal-sticky { font-size:6px;padding:1px 3px;border-left-width:3px;margin-bottom:1px; }
+  }
+  @media print {
+    body > *:not(#calendarOverlay) { display: none !important; }
+    #calendarOverlay { position:static !important; overflow:visible !important; background:#fff !important; }
+    #calendarOverlay > div:first-child { display:none !important; }
+    .cal-month { page-break-after:always; box-shadow:none !important; border-radius:0 !important; }
+    .cal-month:last-child { page-break-after:avoid; }
+  }
 </style>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -502,6 +536,17 @@
 <div class="toast" id="toast"></div>
 
 <!-- Gantt Memo Tooltip -->
+<div id="calendarOverlay" style="display:none;position:fixed;inset:0;z-index:500;background:#f7f9fc;overflow-y:auto">
+  <div style="position:sticky;top:0;z-index:10;background:#2c6fad;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;box-shadow:0 2px 6px rgba(0,0,0,0.2)">
+    <div id="calOverlayTitle" style="font-size:15px;font-weight:700">工程カレンダー</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="window.print()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:5px;padding:5px 12px;cursor:pointer;font-size:12px">🖨 印刷</button>
+      <button onclick="closeCalendarOverlay()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:5px;padding:5px 12px;cursor:pointer;font-size:13px">✕ 閉じる</button>
+    </div>
+  </div>
+  <div id="calOverlayBody" style="padding:10px"></div>
+</div>
+
 <div id="ganttTip" style="position:fixed;z-index:9999;display:none;background:#fff;border:1px solid #e0e4ea;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:12px 14px;min-width:200px;max-width:280px;font-size:12px;pointer-events:none;line-height:1.6"></div>
 
 <!-- Gantt quick comment popup -->
@@ -1370,95 +1415,68 @@ function updatePreview() {
   document.getElementById('pv_progress').textContent = Math.round(c.progress*100) + '%';
 }
 
-// 共通カレンダーHTML生成
+function closeCalendarOverlay() {
+  document.getElementById('calendarOverlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function showCalendarOverlay(title, bodyHTML) {
+  document.getElementById('calOverlayTitle').textContent = '城東機械　' + title;
+  document.getElementById('calOverlayBody').innerHTML = bodyHTML;
+  document.getElementById('calendarOverlay').style.display = 'block';
+  document.getElementById('calendarOverlay').scrollTop = 0;
+  document.body.style.overflow = 'hidden';
+}
+
+// 共通カレンダーHTML生成（オーバーレイ用）
 function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
   const today = new Date(); today.setHours(0,0,0,0);
   const DAY_NAMES = ['日','月','火','水','木','金','土'];
-  const PHASE_STYLE = {
-    '設計終了':  { bg:'#BDD7EE', border:'#7baed4', icon:'🔵' },
-    '資材終了':  { bg:'#C6EFCE', border:'#82c991', icon:'🟢' },
-    '加工終了':  { bg:'#FFEB9C', border:'#f0c419', icon:'🟡' },
-    '納品':      { bg:'#FFC7CE', border:'#e0808c', icon:'🏁' },
-  };
 
   let months = [];
   let cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
   const endM = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
   while (cur <= endM) { months.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
 
-  let html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${title}</title>
-  <style>
-    @page { size: A4 landscape; margin: 8mm; }
-    * { box-sizing:border-box; }
-    body { font-family:'Hiragino Sans','Meiryo',sans-serif; font-size:9px; margin:0; padding:8px; background:#f7f9fc; }
-    .print-btn { padding:6px 16px;background:#2c6fad;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px; }
-    @media print { .print-btn,.no-print{display:none} .month{page-break-after:always} .month:last-child{page-break-after:avoid} body{background:#fff;padding:0} .month{box-shadow:none;border-radius:0} }
-    .month { margin-bottom:14px;background:#fff;border-radius:8px;padding:10px;box-shadow:0 1px 4px rgba(0,0,0,0.08); }
-    .month-header { display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap; }
-    .month-title { font-size:20px;font-weight:bold; }
-    .legend { display:flex;gap:6px;align-items:center;flex-wrap:wrap; }
-    .legend-item { display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;
-      padding:2px 6px 2px 4px;border-radius:3px;border-left:4px solid;white-space:nowrap; }
-    table { width:100%;border-collapse:collapse;table-layout:fixed; }
-    th { text-align:center;padding:4px 2px;border:1px solid #bbb;background:#f0f0f0;font-size:11px; }
-    th.sun{color:#e74c3c} th.sat{color:#2980b9}
-    td { vertical-align:top;border:1px solid #ddd;height:90px;padding:3px;background:#fff; }
-    td.other{background:#f9f9f9} td.is-today{background:#fffde7}
-    .dn { font-size:13px;font-weight:bold;margin-bottom:3px; }
-    .dn.sun,.dn.hol{color:#e74c3c} .dn.sat{color:#2980b9}
-    .sticky { font-size:8px;font-weight:700;padding:2px 5px 2px 4px;border-radius:2px;margin-bottom:2px;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;
-      box-shadow:1px 1px 3px rgba(0,0,0,0.18);border-left:4px solid; }
-    @media screen and (max-width:640px) {
-      body { padding:4px; }
-      .month { padding:8px 5px; }
-      .month-title { font-size:15px; }
-      .legend-item { font-size:7px;padding:1px 4px 1px 3px; }
-      th { font-size:9px;padding:3px 1px; }
-      td { height:60px;padding:2px; }
-      .dn { font-size:10px;margin-bottom:1px; }
-      .sticky { font-size:6px;padding:1px 3px;border-left-width:3px;margin-bottom:1px; }
-      .print-btn { font-size:12px;padding:5px 12px; }
-    }
-  </style></head><body>
-  <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-    <div style="font-size:15px;font-weight:bold">城東機械　${title}</div>
-    <button class="print-btn" onclick="window.print()">🖨 印刷</button>
-  </div>`;
+  const PHASE_STYLE = {
+    '設計終了':  { bg:'#BDD7EE', border:'#7baed4', icon:'🔵' },
+    '資材終了':  { bg:'#C6EFCE', border:'#82c991', icon:'🟢' },
+    '加工終了':  { bg:'#FFEB9C', border:'#f0c419', icon:'🟡' },
+    '納品':      { bg:'#FFC7CE', border:'#e0808c', icon:'🏁' },
+  };
+  const legendHTML = Object.entries(PHASE_STYLE).map(([k,s])=>
+    `<span class="cal-legend-item" style="background:${s.bg};border-color:${s.border}">${s.icon} ${k}</span>`
+  ).join('');
 
+  let body = '';
   months.forEach(ms => {
     const y = ms.getFullYear(), m = ms.getMonth();
     const firstDow = ms.getDay();
     const daysInMonth = new Date(y, m+1, 0).getDate();
-    const legendHTML = Object.entries(PHASE_STYLE).map(([k,s])=>
-      `<span class="legend-item" style="background:${s.bg};border-color:${s.border}">${s.icon} ${k}</span>`
-    ).join('');
-    html += `<div class="month"><div class="month-header"><div class="month-title">${y}年&nbsp;${m+1}月</div><div class="legend">${legendHTML}</div></div>
-      <table><thead><tr>${DAY_NAMES.map((d,i)=>`<th class="${i===0?'sun':i===6?'sat':''}">${d}</th>`).join('')}</tr></thead><tbody><tr>`;
-    for (let i = 0; i < firstDow; i++) html += '<td class="other"></td>';
+    body += `<div class="cal-month"><div class="cal-month-header"><div class="cal-month-title">${y}年&nbsp;${m+1}月</div><div class="cal-legend">${legendHTML}</div></div>
+      <table class="cal-table"><thead><tr>${DAY_NAMES.map((d,i)=>`<th class="${i===0?'cal-sun':i===6?'cal-sat':''}">${d}</th>`).join('')}</tr></thead><tbody><tr>`;
+    for (let i = 0; i < firstDow; i++) body += '<td class="cal-other"></td>';
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(y, m, day);
       const dow = date.getDay();
-      if (dow === 0 && day > 1) html += '</tr><tr>';
+      if (dow === 0 && day > 1) body += '</tr><tr>';
       const isHoli = isHoliday(date);
       const isToday = date.getTime() === today.getTime();
-      const dnCls = (dow===0||isHoli) ? 'sun' : (dow===6 ? 'sat' : '');
+      const dnCls = (dow===0||isHoli) ? 'cal-sun' : (dow===6 ? 'cal-sat' : '');
       const key = formatDate(date);
       const stickers = (stickyMap[key] || []).map(({ label, phase }) => {
         const s = PHASE_STYLE[phase] || { bg:'#eee', border:'#ccc', icon:'📌' };
         const short = label.length > 13 ? label.substring(0,13)+'…' : label;
-        return `<span class="sticky" style="background:${s.bg};border-color:${s.border}" title="${label}">${s.icon} ${short}</span>`;
+        return `<span class="cal-sticky" style="background:${s.bg};border-color:${s.border}" title="${label}">${s.icon} ${short}</span>`;
       }).join('');
-      html += `<td class="${isToday?'is-today':''}"><div class="dn ${dnCls}">${day}</div>${stickers}</td>`;
-      if (dow === 6 && day < daysInMonth) html += '</tr><tr>';
+      body += `<td class="${isToday?'cal-today':''}"><div class="cal-dn ${dnCls}">${day}</div>${stickers}</td>`;
+      if (dow === 6 && day < daysInMonth) body += '</tr><tr>';
     }
     const lastDow = new Date(y, m, daysInMonth).getDay();
-    if (lastDow < 6) for (let i = lastDow+1; i <= 6; i++) html += '<td class="other"></td>';
-    html += '</tr></tbody></table></div>';
+    if (lastDow < 6) for (let i = lastDow+1; i <= 6; i++) body += '<td class="cal-other"></td>';
+    body += '</tr></tbody></table></div>';
   });
-  return html + '</body></html>';
+  return body;
 }
 
 function addSticky(map, date, label, phase) {
@@ -1486,10 +1504,8 @@ function printProjectCalendar(id) {
   const minDate = todayM;
   const maxDate = dates[dates.length - 1];
 
-  const html = buildCalendarHTML(`${p.name}　工程カレンダー`, stickyMap, minDate, maxDate);
-  const win = window.open('', '_blank');
-  win.document.write(html);
-  win.document.close();
+  const body = buildCalendarHTML(`${p.name}　工程カレンダー`, stickyMap, minDate, maxDate);
+  showCalendarOverlay(`${p.name}　工程カレンダー`, body);
 }
 
 // 全案件まとめカレンダー印刷
@@ -1511,10 +1527,8 @@ function printAllCalendar() {
   const minDate = todayM2;
   const maxDate = allDates.reduce((m, d) => d > m ? d : m, allDates[0]);
 
-  const html = buildCalendarHTML('工程カレンダー（全案件）', stickyMap, minDate, maxDate);
-  const win = window.open('', '_blank');
-  win.document.write(html);
-  win.document.close();
+  const body = buildCalendarHTML('工程カレンダー（全案件）', stickyMap, minDate, maxDate);
+  showCalendarOverlay('工程カレンダー（全案件）', body);
 }
 
 function formatAmountInput(el) {
