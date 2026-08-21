@@ -1245,6 +1245,7 @@ function renderTable() {
     </td>
     <td style="white-space:nowrap">
       ${(p.memoDesign||p.memoMaterial||p.memoProcess||p.memoAssembly||p.memoBiko) ? `<span class="memo-badge" onclick="openEditModal('${p.id}')" title="メモあり">📝 メモ</span> ` : ''}
+      <button class="btn btn-sm" onclick="printProjectCalendar('${p.id}')" title="カレンダー印刷" style="background:#e8f4fd;color:#2c6fad;border:1px solid #c5d9ed">📅</button>
       <button class="btn btn-primary btn-sm" onclick="openEditModal('${p.id}')">編集</button>
       <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">削除</button>
     </td>
@@ -1369,24 +1370,16 @@ function updatePreview() {
   document.getElementById('pv_progress').textContent = Math.round(c.progress*100) + '%';
 }
 
-function printAllCalendar() {
-  const calced = projects.map(calcProject).filter(p => p.deliveryDate);
-  if (!calced.length) { alert('表示できる案件がありません'); return; }
-
-  // 納品日でグループ化
-  const deliveryMap = {};
-  calced.forEach(p => {
-    const key = formatDate(p.deliveryDate);
-    if (!deliveryMap[key]) deliveryMap[key] = [];
-    deliveryMap[key].push(p.name);
-  });
-
-  const allDates = Object.keys(deliveryMap).map(s => parseDate(s));
-  let minDate = allDates.reduce((m, d) => d < m ? d : m, allDates[0]);
-  let maxDate = allDates.reduce((m, d) => d > m ? d : m, allDates[0]);
-
+// 共通カレンダーHTML生成
+function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
   const today = new Date(); today.setHours(0,0,0,0);
   const DAY_NAMES = ['日','月','火','水','木','金','土'];
+  const PHASE_STYLE = {
+    '設計終了':  { bg:'#BDD7EE', border:'#7baed4', icon:'🔵' },
+    '資材終了':  { bg:'#C6EFCE', border:'#82c991', icon:'🟢' },
+    '加工終了':  { bg:'#FFEB9C', border:'#f0c419', icon:'🟡' },
+    '納品':      { bg:'#FFC7CE', border:'#e0808c', icon:'🏁' },
+  };
 
   let months = [];
   let cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
@@ -1394,28 +1387,33 @@ function printAllCalendar() {
   while (cur <= endM) { months.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
 
   let html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
-  <title>納品日カレンダー</title>
+  <title>${title}</title>
   <style>
     @page { size: A4 landscape; margin: 8mm; }
     body { font-family:'Hiragino Sans','Meiryo',sans-serif; font-size:9px; margin:0; }
     .print-btn { padding:5px 14px;background:#2c6fad;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px; }
-    @media print { .print-btn,.no-print { display:none; } .month { page-break-after:always; } .month:last-child { page-break-after:avoid; } }
+    @media print { .print-btn,.no-print{display:none} .month{page-break-after:always} .month:last-child{page-break-after:avoid} }
     .month { margin-bottom:12px; }
     .month-title { font-size:20px;font-weight:bold;margin-bottom:4px; }
     table { width:100%;border-collapse:collapse;table-layout:fixed; }
     th { text-align:center;padding:4px;border:1px solid #bbb;background:#f0f0f0;font-size:12px; }
-    th.sun { color:#e74c3c; } th.sat { color:#2980b9; }
-    td { vertical-align:top;border:1px solid #bbb;height:80px;padding:3px;background:#fff; }
-    td.other { background:#f5f5f5; } td.is-today { background:#fffde7; }
+    th.sun{color:#e74c3c} th.sat{color:#2980b9}
+    td { vertical-align:top;border:1px solid #bbb;height:90px;padding:3px;background:#fff; }
+    td.other{background:#f5f5f5} td.is-today{background:#fffde7}
     .dn { font-size:13px;font-weight:bold;margin-bottom:3px; }
-    .dn.sun,.dn.hol { color:#e74c3c; } .dn.sat { color:#2980b9; }
-    .deadline { font-size:8px;font-weight:700;padding:2px 4px;border-radius:3px;margin-bottom:2px;
+    .dn.sun,.dn.hol{color:#e74c3c} .dn.sat{color:#2980b9}
+    .sticky { font-size:8px;font-weight:700;padding:2px 5px 2px 4px;border-radius:2px;margin-bottom:2px;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;
-      background:#e74c3c;color:#fff;border-left:3px solid #c0392b; }
+      box-shadow:1px 1px 3px rgba(0,0,0,0.18);border-left:4px solid; }
+    .legend { display:flex;gap:14px;margin-bottom:6px;font-size:10px;align-items:center;flex-wrap:wrap; }
+    .lc { width:28px;height:12px;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:3px;border-left:4px solid; }
   </style></head><body>
-  <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-    <div style="font-size:15px;font-weight:bold">城東機械　納品日カレンダー</div>
+  <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div style="font-size:15px;font-weight:bold">城東機械　${title}</div>
     <button class="print-btn" onclick="window.print()">🖨 印刷</button>
+  </div>
+  <div class="legend">
+    ${Object.entries(PHASE_STYLE).map(([k,s])=>`<span><span class="lc" style="background:${s.bg};border-color:${s.border}"></span>${k}</span>`).join('')}
   </div>`;
 
   months.forEach(ms => {
@@ -1433,20 +1431,70 @@ function printAllCalendar() {
       const isToday = date.getTime() === today.getTime();
       const dnCls = (dow===0||isHoli) ? 'sun' : (dow===6 ? 'sat' : '');
       const key = formatDate(date);
-      const names = deliveryMap[key] || [];
-      const deadlineHTML = names.map(name => {
-        const label = name.length > 14 ? name.substring(0,14)+'…' : name;
-        return `<span class="deadline" title="${name}">🏁 ${label}</span>`;
+      const stickers = (stickyMap[key] || []).map(({ label, phase }) => {
+        const s = PHASE_STYLE[phase] || { bg:'#eee', border:'#ccc', icon:'📌' };
+        const short = label.length > 13 ? label.substring(0,13)+'…' : label;
+        return `<span class="sticky" style="background:${s.bg};border-color:${s.border}" title="${label}">${s.icon} ${short}</span>`;
       }).join('');
-      html += `<td class="${isToday?'is-today':''}"><div class="dn ${dnCls}">${day}</div>${deadlineHTML}</td>`;
+      html += `<td class="${isToday?'is-today':''}"><div class="dn ${dnCls}">${day}</div>${stickers}</td>`;
       if (dow === 6 && day < daysInMonth) html += '</tr><tr>';
     }
     const lastDow = new Date(y, m, daysInMonth).getDay();
     if (lastDow < 6) for (let i = lastDow+1; i <= 6; i++) html += '<td class="other"></td>';
     html += '</tr></tbody></table></div>';
   });
+  return html + '</body></html>';
+}
 
-  html += '</body></html>';
+function addSticky(map, date, label, phase) {
+  if (!date) return;
+  const key = formatDate(date);
+  if (!map[key]) map[key] = [];
+  map[key].push({ label, phase });
+}
+
+// 案件別カレンダー印刷
+function printProjectCalendar(id) {
+  const p = projects.find(x => x.id === id);
+  if (!p) return;
+  const c = calcProject(p);
+  if (!c.deliveryDate) { alert('納品日が設定されていません'); return; }
+
+  const stickyMap = {};
+  addSticky(stickyMap, c.designEnd,   '設計終了', '設計終了');
+  addSticky(stickyMap, c.materialEnd, '資材終了', '資材終了');
+  addSticky(stickyMap, c.processEnd,  '加工終了', '加工終了');
+  addSticky(stickyMap, c.deliveryDate,'納品',     '納品');
+
+  const dates = [c.designEnd, c.materialEnd, c.processEnd, c.deliveryDate].filter(Boolean);
+  const minDate = c.startDate || dates[0];
+  const maxDate = dates[dates.length - 1];
+
+  const html = buildCalendarHTML(`${p.name}　工程カレンダー`, stickyMap, minDate, maxDate);
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+}
+
+// 全案件まとめカレンダー印刷
+function printAllCalendar() {
+  const calced = projects.map(calcProject).filter(p => p.deliveryDate);
+  if (!calced.length) { alert('表示できる案件がありません'); return; }
+
+  const stickyMap = {};
+  calced.forEach(p => {
+    const n = p.name;
+    addSticky(stickyMap, p.designEnd,   n + '　設計終了', '設計終了');
+    addSticky(stickyMap, p.materialEnd, n + '　資材終了', '資材終了');
+    addSticky(stickyMap, p.processEnd,  n + '　加工終了', '加工終了');
+    addSticky(stickyMap, p.deliveryDate,n + '　納品',     '納品');
+  });
+
+  const allDates = calced.flatMap(p => [p.designEnd, p.materialEnd, p.processEnd, p.deliveryDate, p.startDate]).filter(Boolean);
+  const minDate = allDates.reduce((m, d) => d < m ? d : m, allDates[0]);
+  const maxDate = allDates.reduce((m, d) => d > m ? d : m, allDates[0]);
+
+  const html = buildCalendarHTML('工程カレンダー（全案件）', stickyMap, minDate, maxDate);
   const win = window.open('', '_blank');
   win.document.write(html);
   win.document.close();
