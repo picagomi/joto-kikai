@@ -392,8 +392,19 @@
   .cal-c-pink   { background:#FBD3D9;border-left-color:#d16b78;color:#5e1a24; }
   .cal-c-green  { background:#CFEBD5;border-left-color:#5aa96e;color:#14472a; }
   .cal-c-yellow { background:#FFE9A3;border-left-color:#d9a800;color:#4a3800; }
-  .cal-c-blue, .cal-c-pink, .cal-c-green, .cal-c-yellow {
+  .cal-c-purple { background:#DFD4F2;border-left-color:#8266bd;color:#33215e; }
+  .cal-c-orange { background:#FBDCC0;border-left-color:#d9822b;color:#6b3a10; }
+  .cal-c-blue, .cal-c-pink, .cal-c-green, .cal-c-yellow, .cal-c-purple, .cal-c-orange {
     -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* 絞り込みパネル */
+  .cal-fl { display:inline-flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;user-select:none; }
+  .cal-fl input { cursor:pointer;margin:0;flex-shrink:0; }
+  .cal-fl-row { display:flex;width:100%;padding:3px 2px;border-bottom:1px solid #f2f4f7; }
+  .cal-fl-row:last-child { border-bottom:none; }
+  .cal-fl-chip { font-size:11px;font-weight:700;padding:2px 8px;border-radius:3px;border-left:4px solid; }
+  .cal-fl-n { font-size:10px;color:#999;flex-shrink:0; }
+  .cal-fl-dot { width:12px;height:12px;border-radius:3px;flex-shrink:0;border-left:3px solid; }
+  .cal-fl-empty { opacity:0.45; }
   @media screen and (max-width:640px) {
     .cal-month { padding:8px 5px; }
     .cal-month-title { font-size:15px; }
@@ -410,6 +421,7 @@
     body > *:not(#calendarOverlay) { display: none !important; }
     #calendarOverlay { position:static !important; overflow:visible !important; background:#fff !important; }
     #calendarOverlay > div:first-child { display:none !important; }
+    #calFilterPanel { display:none !important; }
     .cal-month { page-break-after:always; box-shadow:none !important; border-radius:0 !important; }
     .cal-month:last-child { page-break-after:avoid; }
   }
@@ -556,8 +568,27 @@
   <div style="position:sticky;top:0;z-index:10;background:#2c6fad;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;box-shadow:0 2px 6px rgba(0,0,0,0.2)">
     <div id="calOverlayTitle" style="font-size:15px;font-weight:700">工程カレンダー</div>
     <div style="display:flex;gap:8px">
+      <button onclick="toggleCalFilterPanel()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:5px;padding:5px 12px;cursor:pointer;font-size:12px">🔍 絞込</button>
       <button onclick="window.print()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:5px;padding:5px 12px;cursor:pointer;font-size:12px">🖨 印刷</button>
       <button onclick="closeCalendarOverlay()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:5px;padding:5px 12px;cursor:pointer;font-size:13px">✕ 閉じる</button>
+    </div>
+  </div>
+  <div id="calFilterPanel" style="display:none;background:#fff;border-bottom:1px solid #dde3ea;padding:10px 14px 12px;box-shadow:0 2px 5px rgba(0,0,0,0.06)">
+    <div style="font-size:11px;font-weight:700;color:#555;margin-bottom:5px">種別で絞り込み</div>
+    <div id="calFilterCats" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+      <button id="calCmtToggle" onclick="toggleCalCmtAccordion()" style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#555;background:none;border:none;padding:2px 0;cursor:pointer">
+        <span id="calCmtArrow" style="font-size:9px;color:#888">▶</span>コメントで絞り込み
+      </button>
+      <span id="calCmtSummary" style="font-size:10px;color:#999"></span>
+      <span id="calFilterCount" style="font-size:11px;color:#888;margin-left:auto"></span>
+    </div>
+    <div id="calCmtBody" style="display:none">
+      <div style="display:flex;gap:6px;margin-bottom:5px">
+        <button onclick="setAllCalCmt(true)" style="font-size:10px;padding:2px 8px;border:1px solid #c5d9ed;background:#e8f4fd;color:#2c6fad;border-radius:4px;cursor:pointer">全選択</button>
+        <button onclick="setAllCalCmt(false)" style="font-size:10px;padding:2px 8px;border:1px solid #ddd;background:#f5f5f5;color:#666;border-radius:4px;cursor:pointer">全解除</button>
+      </div>
+      <div id="calFilterComments" style="max-height:200px;overflow-y:auto;border:1px solid #e5e9ef;border-radius:6px;padding:6px 8px"></div>
     </div>
   </div>
   <div id="calOverlayBody" style="padding:10px"></div>
@@ -1443,14 +1474,35 @@ function updatePreview() {
 
 let _calStickyMap = {};
 
-// コメント内容から色分けクラスを判定
-// 「納品」は完全一致のみ（「架台納品」等はその他扱い）
+const CAL_CATS = ['設計完了','加工完了','出荷完了','出荷納品','出荷','納品','その他'];
+const CAL_CAT_CLASS = {
+  '設計完了': 'cal-c-blue',
+  '加工完了': 'cal-c-green',
+  '出荷完了': 'cal-c-purple',
+  '出荷納品': 'cal-c-yellow',
+  '出荷':     'cal-c-orange',
+  '納品':     'cal-c-pink',
+  'その他':   'cal-c-yellow',
+};
+
+function normComment(comment) {
+  return String(comment || '').replace(/^[\s　]+|[\s　]+$/g, '');
+}
+
+// コメント内容から種別を判定（「納品」は完全一致のみ）
+function commentCategory(comment) {
+  const c = normComment(comment);
+  if (c.includes('設計完了')) return '設計完了';
+  if (c.includes('加工完了')) return '加工完了';
+  if (c.includes('出荷完了')) return '出荷完了';
+  if (c.includes('出荷納品')) return '出荷納品';
+  if (c.includes('出荷'))     return '出荷';
+  if (c === '納品')           return '納品';
+  return 'その他';
+}
+
 function commentColorClass(comment) {
-  const c = String(comment || '').replace(/^[\s　]+|[\s　]+$/g, '');
-  if (c === '納品')           return 'cal-c-pink';
-  if (c.includes('設計完了')) return 'cal-c-blue';
-  if (c.includes('出荷'))     return 'cal-c-green';
-  return 'cal-c-yellow';
+  return CAL_CAT_CLASS[commentCategory(comment)];
 }
 
 // 日付セルタップ → その日のコメント一覧
@@ -1486,12 +1538,129 @@ function closeCalendarOverlay() {
   closeDayModal();
 }
 
-function showCalendarOverlay(title, bodyHTML) {
+// ===== カレンダー絞り込み =====
+let _calSourceMap = {}, _calSourceTitle = '';
+let _calCatFilter = new Set(CAL_CATS);
+let _calCmtFilter = new Set();
+
+function showCalendarOverlay(title, stickyMap) {
+  // カレンダーは当月から表示するため、過去分は対象外にして件数を実表示と一致させる
+  const from = new Date(); from.setDate(1); from.setHours(0,0,0,0);
+  const inRange = {};
+  Object.keys(stickyMap).forEach(k => {
+    const d = parseDate(k);
+    if (d && d >= from) inRange[k] = stickyMap[k];
+  });
+
+  _calSourceTitle = title;
+  _calSourceMap = inRange;
+  _calCatFilter = new Set(CAL_CATS);
+  _calCmtFilter = new Set(Object.values(inRange).flat().map(i => normComment(i.comment)));
+  renderCalFilterPanel();
+  applyCalFilter();
   document.getElementById('calOverlayTitle').textContent = '城東機械　' + title;
-  document.getElementById('calOverlayBody').innerHTML = bodyHTML;
+  document.getElementById('calFilterPanel').style.display = 'none';
+  document.getElementById('calCmtBody').style.display = 'none';
+  document.getElementById('calCmtArrow').textContent = '▶';
   const ov = document.getElementById('calendarOverlay');
   ov.style.display = 'block';
   ov.scrollTop = 0;
+}
+
+function toggleCalFilterPanel() {
+  const el = document.getElementById('calFilterPanel');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function renderCalFilterPanel() {
+  const all = Object.values(_calSourceMap).flat();
+
+  // 種別（存在するものだけ、件数付き）
+  const catCount = {};
+  all.forEach(i => { const c = commentCategory(i.comment); catCount[c] = (catCount[c]||0)+1; });
+  document.getElementById('calFilterCats').innerHTML = CAL_CATS
+    .map(c => `<label class="cal-fl${catCount[c] ? '' : ' cal-fl-empty'}"><input type="checkbox" checked onchange="toggleCalCat('${c}',this.checked)">
+      <span class="cal-fl-chip ${CAL_CAT_CLASS[c]}">${c}</span><span class="cal-fl-n">${catCount[c] || 0}</span></label>`)
+    .join('');
+
+  // コメント（重複排除／種別順→件数の多い順）
+  const seen = new Map();
+  all.forEach(i => {
+    const t = normComment(i.comment);
+    if (!seen.has(t)) seen.set(t, { cat: commentCategory(t), n: 0 });
+    seen.get(t).n++;
+  });
+  const list = [...seen].sort((a, b) => {
+    const ci = CAL_CATS.indexOf(a[1].cat) - CAL_CATS.indexOf(b[1].cat);
+    if (ci !== 0) return ci;
+    if (b[1].n !== a[1].n) return b[1].n - a[1].n;
+    return a[0].localeCompare(b[0], 'ja');
+  });
+  document.getElementById('calFilterComments').innerHTML = list
+    .map(([text, v]) => `<label class="cal-fl cal-fl-row"><input type="checkbox" checked onchange="toggleCalCmt(this.dataset.t,this.checked)" data-t="${escAttr(text)}">
+      <span class="cal-fl-dot ${CAL_CAT_CLASS[v.cat]}"></span>
+      <span style="flex:1;word-break:break-word">${escHtml(text)}</span><span class="cal-fl-n">${v.n}</span></label>`)
+    .join('');
+}
+
+function escAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toggleCalCmtAccordion() {
+  const body = document.getElementById('calCmtBody');
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  document.getElementById('calCmtArrow').textContent = open ? '▼' : '▶';
+}
+
+function updateCalCmtSummary() {
+  const el = document.getElementById('calCmtSummary');
+  if (!el) return;
+  const total = document.querySelectorAll('#calFilterComments input[type=checkbox]').length;
+  const on = _calCmtFilter.size;
+  el.textContent = (on === total) ? `（全${total}種）` : `（${on}/${total}種を選択中）`;
+}
+
+function toggleCalCat(cat, on) {
+  if (on) _calCatFilter.add(cat); else _calCatFilter.delete(cat);
+  applyCalFilter();
+}
+
+function toggleCalCmt(text, on) {
+  if (on) _calCmtFilter.add(text); else _calCmtFilter.delete(text);
+  applyCalFilter();
+}
+
+function setAllCalCmt(on) {
+  _calCmtFilter = on ? new Set(Object.values(_calSourceMap).flat().map(i => normComment(i.comment))) : new Set();
+  document.querySelectorAll('#calFilterComments input[type=checkbox]').forEach(cb => { cb.checked = on; });
+  applyCalFilter();
+}
+
+function applyCalFilter() {
+  const filtered = {};
+  let shown = 0, total = 0;
+  Object.keys(_calSourceMap).forEach(k => {
+    const items = _calSourceMap[k].filter(it => {
+      total++;
+      return _calCatFilter.has(commentCategory(it.comment)) && _calCmtFilter.has(normComment(it.comment));
+    });
+    if (items.length) { filtered[k] = items; shown += items.length; }
+  });
+
+  const cntEl = document.getElementById('calFilterCount');
+  if (cntEl) cntEl.textContent = `表示 ${shown.toLocaleString('ja-JP')} / ${total.toLocaleString('ja-JP')} 件`;
+  updateCalCmtSummary();
+
+  const body = document.getElementById('calOverlayBody');
+  const range = calcCommentRange(filtered);
+  if (!range) {
+    _calStickyMap = {};
+    body.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#999;font-size:13px">表示する項目がありません</div>';
+    return;
+  }
+  body.innerHTML = buildCalendarHTML(_calSourceTitle, filtered, range.minDate, range.maxDate);
 }
 
 // 共通カレンダーHTML生成（オーバーレイ用）
@@ -1505,11 +1674,10 @@ function buildCalendarHTML(title, stickyMap, minDate, maxDate) {
   while (cur <= endM) { months.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
 
   _calStickyMap = stickyMap;
-  const legendHTML =
-    `<span class="cal-legend-item cal-c-blue">設計完了</span>` +
-    `<span class="cal-legend-item cal-c-pink">納品</span>` +
-    `<span class="cal-legend-item cal-c-green">出荷</span>` +
-    `<span class="cal-legend-item cal-c-yellow">その他コメント</span>`;
+  // 実際に含まれる種別のみ凡例に出す
+  const presentCats = new Set(Object.values(stickyMap).flat().map(i => commentCategory(i.comment)));
+  const legendHTML = CAL_CATS.filter(c => presentCats.has(c))
+    .map(c => `<span class="cal-legend-item ${CAL_CAT_CLASS[c]}">${c}</span>`).join('');
 
   let body = '';
   months.forEach(ms => {
@@ -1581,8 +1749,7 @@ function printProjectCalendar(id) {
   const range = calcCommentRange(stickyMap);
   if (!range) { alert('この案件には日付コメントがありません'); return; }
 
-  const title = `${p.name}　コメントカレンダー`;
-  showCalendarOverlay(title, buildCalendarHTML(title, stickyMap, range.minDate, range.maxDate));
+  showCalendarOverlay(`${p.name}　コメントカレンダー`, stickyMap);
 }
 
 // 全案件まとめコメントカレンダー
@@ -1593,8 +1760,7 @@ function printAllCalendar() {
   const range = calcCommentRange(stickyMap);
   if (!range) { alert('日付コメントが登録されていません'); return; }
 
-  const title = 'コメントカレンダー（全案件）';
-  showCalendarOverlay(title, buildCalendarHTML(title, stickyMap, range.minDate, range.maxDate));
+  showCalendarOverlay('コメントカレンダー（全案件）', stickyMap);
 }
 
 function formatAmountInput(el) {
