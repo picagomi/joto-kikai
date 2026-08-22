@@ -417,12 +417,18 @@
     .cal-sticky-cmt { font-size:7px; }
     .cal-sticky-prj { font-size:6px; }
   }
+  /* margin:0 でブラウザ既定のヘッダー/フッター（URL・日付・ページ番号）を出さない */
+  @page { size: A4 landscape; margin: 0; }
   @media print {
+    html, body { margin:0 !important; padding:0 !important; background:#fff !important; }
     body > *:not(#calendarOverlay) { display: none !important; }
     #calendarOverlay { position:static !important; overflow:visible !important; background:#fff !important; }
     #calendarOverlay > div:first-child { display:none !important; }
     #calFilterPanel { display:none !important; }
-    .cal-month { page-break-after:always; box-shadow:none !important; border-radius:0 !important; }
+    /* @page の余白を0にした分、内側で余白を確保 */
+    #calOverlayBody { padding: 8mm !important; }
+    .cal-month { page-break-after:always; box-shadow:none !important; border-radius:0 !important;
+      background:#fff !important; padding:0 !important; margin-bottom:0 !important; }
     .cal-month:last-child { page-break-after:avoid; }
   }
 </style>
