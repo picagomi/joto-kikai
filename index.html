@@ -1474,14 +1474,14 @@ function updatePreview() {
 
 let _calStickyMap = {};
 
-const CAL_CATS = ['設計完了','加工完了','出荷完了','出荷納品','出荷','納品','その他'];
+const CAL_CATS = ['設計完了','加工完了','出荷完了','出荷納品','出荷','納期','その他'];
 const CAL_CAT_CLASS = {
   '設計完了': 'cal-c-blue',
   '加工完了': 'cal-c-green',
   '出荷完了': 'cal-c-purple',
   '出荷納品': 'cal-c-yellow',
   '出荷':     'cal-c-orange',
-  '納品':     'cal-c-pink',
+  '納期':     'cal-c-pink',
   'その他':   'cal-c-yellow',
 };
 
@@ -1489,7 +1489,7 @@ function normComment(comment) {
   return String(comment || '').replace(/^[\s　]+|[\s　]+$/g, '');
 }
 
-// コメント内容から種別を判定（「納品」は完全一致のみ）
+// コメント内容から種別を判定（「納期」は完全一致のみ）
 function commentCategory(comment) {
   const c = normComment(comment);
   if (c.includes('設計完了')) return '設計完了';
@@ -1497,7 +1497,7 @@ function commentCategory(comment) {
   if (c.includes('出荷完了')) return '出荷完了';
   if (c.includes('出荷納品')) return '出荷納品';
   if (c.includes('出荷'))     return '出荷';
-  if (c === '納品')           return '納品';
+  if (c === '納期')           return '納期';
   return 'その他';
 }
 
