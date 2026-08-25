@@ -433,6 +433,15 @@
   .gap-s { background:#fff4d6;color:#8a6100; }
   .gap-l { background:#fdecea;color:#c0392b; }
   .gap-na{ background:#f1f3f5;color:#999; }
+  .gapv[onclick] { cursor:pointer;user-select:none;transition:transform .08s; }
+  .gapv[onclick]:hover { transform:scale(1.08); }
+  .gapv[onclick]:active { transform:scale(0.95); }
+  /* 手動マーキング（タップで切替） */
+  .flag-1 { background:#e74c3c !important;color:#fff !important;box-shadow:0 0 0 2px #f5b7b1; }
+  .flag-2 { background:#f39c12 !important;color:#fff !important;box-shadow:0 0 0 2px #fbdfae; }
+  .flag-3 { background:#27ae60 !important;color:#fff !important;box-shadow:0 0 0 2px #b7e4c7; }
+  .flag-legend { display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:11px;color:#777;
+    padding:8px 10px;background:#f8fafc;border:1px solid #e5eaf0;border-radius:6px;margin-bottom:10px; }
   .mt-dates { font-size:10px;color:#666;line-height:1.5;white-space:nowrap; }
   .mt-nomatch td { background:#fffbf5; }
   @media (max-width:640px) {
@@ -452,6 +461,38 @@
     .cal-sticky-cmt { font-size:7px; }
     .cal-sticky-prj { font-size:6px; }
   }
+  /* ===== ログイン画面 ===== */
+  #authLoading { position:fixed;top:0;right:0;bottom:0;left:0;z-index:1100;background:#f4f7fb;
+    display:flex;align-items:center;justify-content:center; }
+  #authGate { position:fixed;top:0;right:0;bottom:0;left:0;z-index:1000;display:none;
+    align-items:center;justify-content:center;padding:20px;
+    background:linear-gradient(150deg,#2c6fad 0%,#1a4d7a 100%); }
+  #authCard { background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,0.25);
+    padding:30px 26px 22px;width:100%;max-width:360px;text-align:center; }
+  .auth-logo { font-size:34px;margin-bottom:6px; }
+  .auth-title { font-size:18px;font-weight:800;color:#243b53;margin:0 0 4px; }
+  .auth-sub { font-size:12px;color:#7b8794;margin:0 0 20px; }
+  .auth-label { display:block;text-align:left;font-size:11px;font-weight:700;color:#5a6b7d;margin:0 0 4px; }
+  .auth-input { width:100%;padding:10px 12px;font-size:14px;border:1px solid #d5dbe3;border-radius:8px;
+    margin-bottom:13px;box-sizing:border-box;background:#fff;color:#222; }
+  .auth-input:focus { outline:none;border-color:#2c6fad;box-shadow:0 0 0 3px rgba(44,111,173,0.13); }
+  .auth-remember { display:flex;align-items:center;gap:6px;font-size:11px;color:#7b8794;
+    margin-bottom:12px;cursor:pointer;text-align:left; }
+  .auth-remember input { margin:0;cursor:pointer; }
+  .auth-btn { width:100%;padding:11px;font-size:14px;font-weight:700;color:#fff;background:#2c6fad;
+    border:none;border-radius:8px;cursor:pointer;transition:background .15s; }
+  .auth-btn:hover:not(:disabled) { background:#1a5490; }
+  .auth-btn:disabled { background:#a9bdd1;cursor:default; }
+  .auth-error { display:none;font-size:12px;color:#c0392b;background:#fdecea;border:1px solid #f5c6c0;
+    border-radius:6px;padding:8px 10px;margin-bottom:12px;text-align:left;line-height:1.5; }
+  .auth-error.show { display:block; }
+  .auth-ok { color:#1e7e34 !important;background:#e8f6ec !important;border-color:#bfe3c9 !important; }
+  .auth-link { background:none;border:none;color:#2c6fad;font-size:11px;cursor:pointer;
+    margin-top:14px;text-decoration:underline;padding:4px; }
+  .user-badge { display:inline-flex;align-items:center;gap:6px;font-size:11px;
+    background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);
+    color:#fff;border-radius:20px;padding:4px 10px;white-space:nowrap; }
+  @media print { #authGate, #authLoading { display:none !important; } }
   /* 照合タブ印刷 */
   body.printing-match #matchSection { display:block !important; }
   @media print {
@@ -483,8 +524,36 @@
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 </head>
 <body>
+<!-- ===== ログイン画面 ===== -->
+<div id="authGate">
+  <div id="authCard">
+    <div class="auth-logo">⚙️</div>
+    <h1 class="auth-title">城東機械作業工程表</h1>
+    <p class="auth-sub">社内用システムです。ログインしてください。</p>
+    <form id="authForm" onsubmit="doLogin(event)">
+      <label class="auth-label">メールアドレス</label>
+      <input type="email" id="authEmail" class="auth-input" autocomplete="username" required placeholder="you@example.com">
+      <label class="auth-label">パスワード</label>
+      <input type="password" id="authPass" class="auth-input" autocomplete="current-password" required placeholder="••••••••">
+      <label class="auth-remember"><input type="checkbox" id="authRemember" checked> このブラウザでログイン状態を保持</label>
+      <div id="authError" class="auth-error"></div>
+      <button type="submit" id="authBtn" class="auth-btn">ログイン</button>
+    </form>
+    <button type="button" class="auth-link" onclick="sendReset()">パスワードを忘れた場合</button>
+  </div>
+</div>
+
+<!-- 起動時のちらつき防止：認証確認中のオーバーレイ -->
+<div id="authLoading">
+  <div style="text-align:center;color:#5a6b7d">
+    <div style="font-size:28px;margin-bottom:8px">⚙️</div>
+    <div style="font-size:13px">読み込み中…</div>
+  </div>
+</div>
+
 
 <!-- Header -->
 <div class="app-header">
@@ -492,6 +561,7 @@
     <h1>⚙ 城東機械作業工程表</h1>
   </div>
   <span class="today-badge" id="todayLabel"></span>
+  <span class="user-badge" id="userBadge" style="display:none"></span>
   <span id="syncBadge" style="background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;font-size:11px;display:none"></span>
   <div class="header-actions">
     <button class="btn btn-success" onclick="openAddModal()">＋ 受注追加</button>
@@ -571,9 +641,18 @@
         </select>
       </label>
       <label class="match-fl"><input type="checkbox" id="mtOnlyDiff" onchange="renderMatch()"> 乖離ありのみ</label>
+      <label class="match-fl"><input type="checkbox" id="mtOnlyFlag" onchange="renderMatch()"> マーク付きのみ</label>
       <label class="match-fl"><input type="checkbox" id="mtOnlyMatched" checked onchange="renderMatch()"> 照合できたもののみ</label>
       <input type="text" id="mtSearch" placeholder="🔍 受注品名で絞込" oninput="renderMatch()" class="match-search">
       <span id="mtCount" class="match-count"></span>
+    </div>
+    <div class="flag-legend">
+      <b style="color:#555">日付をタップすると修正の必要度を記録できます：</b>
+      <span class="gapv flag-1">🔴 至急修正</span>
+      <span class="gapv flag-2">🟡 要確認</span>
+      <span class="gapv flag-3">🟢 修正済</span>
+      <span>→ もう一度タップで解除</span>
+      <span style="margin-left:auto;color:#999">記録は全員で共有されます</span>
     </div>
     <div id="matchSummary" class="match-summary"></div>
     <div style="overflow-x:auto"><div id="matchContent"></div></div>
@@ -713,6 +792,10 @@
     </div>
     <div class="modal-body">
       <div class="form-grid">
+        <div class="form-group full">
+          <label>受注No.</label>
+          <input type="text" id="f_order_no" placeholder="例：J26166-SNJB">
+        </div>
         <div class="form-group full" id="fg_name">
           <label>受注品名 *</label>
           <input type="text" id="f_name" placeholder="例：神山商事 ３山角スパン成形機">
@@ -881,12 +964,13 @@ const FIREBASE_CONFIG = {
   appId:             "1:957444211524:web:0755bc79a1d5d9d340cd11"
 };
 
-let db = null;
+let db = null, auth = null;
 const USE_FIREBASE = FIREBASE_CONFIG.apiKey !== "ここに貼り付け";
 if (USE_FIREBASE) {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.database();
+    auth = firebase.auth();
     // 接続状態の監視
     db.ref('.info/connected').on('value', snap => {
       const badge = document.getElementById('syncBadge');
@@ -1103,12 +1187,58 @@ function diffDays(a, b) {
   if (!a || !b) return null;
   return Math.round((a.getTime() - b.getTime()) / 86400000);
 }
-function gapChip(days) {
-  if (days === null) return '<span class="gapv gap-na">—</span>';
+// ===== 修正要フラグ（タップで3段階を切替） =====
+let matchFlags = {};
+const FLAG_INFO = {
+  1: { cls: 'flag-1', label: '🔴 至急修正' },
+  2: { cls: 'flag-2', label: '🟡 要確認' },
+  3: { cls: 'flag-3', label: '🟢 修正済' },
+};
+const FLAG_ORDER = [0, 1, 2, 3];
+
+function flagKey(no, field) { return no + '|' + field; }
+
+function cycleFlag(ev, no, field) {
+  if (ev) ev.stopPropagation();
+  const k = flagKey(no, field);
+  const next = ((matchFlags[k] || 0) + 1) % 4;
+  if (next === 0) delete matchFlags[k]; else matchFlags[k] = next;
+  saveMatchFlags();
+  renderMatch();
+}
+
+function saveMatchFlags() {
+  try { localStorage.setItem('wf_matchFlags', JSON.stringify(matchFlags)); } catch {}
+  if (db) db.ref('matchFlags').set(Object.keys(matchFlags).length ? matchFlags : null).catch(() => {});
+}
+
+function loadMatchFlags() {
+  try {
+    const v = JSON.parse(localStorage.getItem('wf_matchFlags') || '{}');
+    if (v && typeof v === 'object') matchFlags = v;
+  } catch {}
+  if (db) {
+    db.ref('matchFlags').on('value', snap => {
+      const v = snap.val();
+      matchFlags = v && typeof v === 'object' ? v : {};
+      try { localStorage.setItem('wf_matchFlags', JSON.stringify(matchFlags)); } catch {}
+      const sec = document.getElementById('matchSection');
+      if (sec && sec.style.display !== 'none') renderMatch();
+    }, () => {});
+  }
+}
+
+function gapChip(days, no, field) {
+  const flag = (no && field) ? (matchFlags[flagKey(no, field)] || 0) : 0;
+  const tap  = (no && field) ? ` onclick="cycleFlag(event,'${no}','${field}')" title="タップで 至急修正→要確認→修正済→解除"` : '';
+  if (days === null) {
+    return `<span class="gapv gap-na${flag ? ' ' + FLAG_INFO[flag].cls : ''}"${tap}>—</span>`;
+  }
   const abs = Math.abs(days);
-  const cls = abs === 0 ? 'gap-0' : (abs <= 3 ? 'gap-s' : 'gap-l');
+  const auto = abs === 0 ? 'gap-0' : (abs <= 3 ? 'gap-s' : 'gap-l');
+  const cls  = flag ? FLAG_INFO[flag].cls : auto;
   const sign = days > 0 ? '+' : '';
-  return `<span class="gapv ${cls}">${sign}${days}日</span>`;
+  return `<span class="gapv ${cls}"${tap}>${sign}${days}日</span>`;
 }
 function fmtShort(d) { return d ? `${String(d.getFullYear()).slice(2)}/${d.getMonth()+1}/${d.getDate()}` : '—'; }
 
@@ -1164,13 +1294,17 @@ function buildMatches() {
   KOTEI_DATA.forEach((k, ki) => {
     cands.forEach((x, xi) => {
       const ns = simScore(k.nm, x.p.name);
-      if (ns < 0.12) return;                            // 品名が全く違うものは金額が合っても除外
+      // 受注No.が一致すれば品名・金額に関係なく最優先で確定
+      const noHit = !!(x.p.orderNo && k.no &&
+        x.p.orderNo.replace(/\s/g,'').toUpperCase() === k.no.replace(/\s/g,'').toUpperCase());
+      if (!noHit && ns < 0.12) return;                  // 品名が全く違うものは金額が合っても除外
       const tier = amountTier(k.am, x.p.amount);
-      pairs.push({ ki, xi, ns, tier, score: Math.max(0, Math.min(1, tierScore(tier, ns))) });
+      const score = noHit ? 1 : Math.max(0, Math.min(1, tierScore(tier, ns)));
+      pairs.push({ ki, xi, ns, tier, score, noHit });
     });
   });
   // 確度の高い組み合わせから順に確定させ、同じ案件の二重割当を防ぐ
-  pairs.sort((a, b) => b.score - a.score || a.tier - b.tier || b.ns - a.ns);
+  pairs.sort((a, b) => (b.noHit - a.noHit) || b.score - a.score || a.tier - b.tier || b.ns - a.ns);
   const usedK = new Set(), usedX = new Set(), assign = {};
   pairs.forEach(pr => {
     if (usedK.has(pr.ki) || usedX.has(pr.xi)) return;
@@ -1223,6 +1357,8 @@ function renderMatch() {
   let list = _matchCache.map(m => ({ ...m, matched: m.score >= th }));
   if (onlyM) list = list.filter(m => m.matched);
   if (only)  list = list.filter(m => [m.gNk, m.gKs, m.gKe, m.gSe].some(g => g !== null && g !== 0));
+  if (document.getElementById('mtOnlyFlag').checked)
+    list = list.filter(m => ['se','ke','ks','nk'].some(f => matchFlags[flagKey(m.k.no, f)]));
   if (q)     list = list.filter(m => normName(m.k.nm).includes(q) || (m.best && normName(m.best.p.name).includes(q)));
   list.sort((a, b) => (a.k.nk || '9999').localeCompare(b.k.nk || '9999'));
 
@@ -1233,13 +1369,20 @@ function renderMatch() {
   const nZero = gaps.filter(g => g === 0).length;
   const nBig  = gaps.filter(g => Math.abs(g) > 3).length;
   const nAmtOk = all.filter(m => m.matched && m.k.am && m.aAmt && m.k.am === m.aAmt).length;
+  const fv = Object.values(matchFlags);
+  const nF1 = fv.filter(v => v === 1).length;
+  const nF2 = fv.filter(v => v === 2).length;
+  const nF3 = fv.filter(v => v === 3).length;
   document.getElementById('matchSummary').innerHTML = `
     <div class="ms-card"><div class="l">工程管理表 未完了</div><div class="v">${KOTEI_DATA.length.toLocaleString('ja-JP')}</div></div>
     <div class="ms-card ok"><div class="l">照合できた案件</div><div class="v">${nMatched.toLocaleString('ja-JP')}</div></div>
     <div class="ms-card bad"><div class="l">未照合</div><div class="v">${(KOTEI_DATA.length - nMatched).toLocaleString('ja-JP')}</div></div>
     <div class="ms-card ok"><div class="l">受注金額も一致</div><div class="v">${nAmtOk.toLocaleString('ja-JP')}</div></div>
     <div class="ms-card ok"><div class="l">一致した工程日</div><div class="v">${nZero.toLocaleString('ja-JP')}</div></div>
-    <div class="ms-card warn"><div class="l">4日以上の乖離</div><div class="v">${nBig.toLocaleString('ja-JP')}</div></div>`;
+    <div class="ms-card warn"><div class="l">4日以上の乖離</div><div class="v">${nBig.toLocaleString('ja-JP')}</div></div>
+    <div class="ms-card bad"><div class="l">🔴 至急修正</div><div class="v">${nF1.toLocaleString('ja-JP')}</div></div>
+    <div class="ms-card warn"><div class="l">🟡 要確認</div><div class="v">${nF2.toLocaleString('ja-JP')}</div></div>
+    <div class="ms-card ok"><div class="l">🟢 修正済</div><div class="v">${nF3.toLocaleString('ja-JP')}</div></div>`;
 
   document.getElementById('mtCount').textContent = `${list.length.toLocaleString('ja-JP')} 件表示`;
 
@@ -1254,8 +1397,8 @@ function renderMatch() {
     const appCell = m.matched
       ? `<div class="mt-nm" style="cursor:pointer;color:#2c6fad" onclick="openEditModal('${m.best.p.id}')">${escHtml(m.best.p.name)} ✏️</div>`
       : '<div style="color:#c0392b;font-size:10px;font-weight:700">未照合</div>';
-    const pair = (kd, ad, gap) =>
-      `<td class="mt-c"><div class="mt-dates">表 ${fmtShort(kd)}<br>App ${fmtShort(ad)}</div>${gapChip(gap)}</td>`;
+    const pair = (kd, ad, gap, field) =>
+      `<td class="mt-c"><div class="mt-dates">表 ${fmtShort(kd)}<br>App ${fmtShort(ad)}</div>${gapChip(gap, m.k.no, field)}</td>`;
     return `<tr class="${m.matched ? '' : 'mt-nomatch'}">
       <td class="mt-no">${escHtml(m.k.no)}</td>
       <td class="mt-src">${escHtml(m.k.nm)}<div style="font-size:9px;color:#999">${escHtml(m.k.tk)}</div></td>
@@ -1267,10 +1410,10 @@ function renderMatch() {
           App ${m.matched && m.aAmt ? '¥' + m.aAmt.toLocaleString('ja-JP') : '—'}</div>
         ${m.matched ? `<span class="gapv ${m.amt.cls}">${m.amt.label}</span>` : '<span class="gapv gap-na">—</span>'}
       </td>
-      ${pair(m.kSe, m.aSe, m.gSe)}
-      ${pair(m.kKe, m.aKe, m.gKe)}
-      ${pair(m.kKs, m.aKs, m.gKs)}
-      ${pair(m.kNk, m.aNk, m.gNk)}
+      ${pair(m.kSe, m.aSe, m.gSe, 'se')}
+      ${pair(m.kKe, m.aKe, m.gKe, 'ke')}
+      ${pair(m.kKs, m.aKs, m.gKs, 'ks')}
+      ${pair(m.kNk, m.aNk, m.gNk, 'nk')}
     </tr>`;
   }).join('');
 
@@ -1683,7 +1826,7 @@ function renderTable() {
 function openAddModal() {
   editingId = null;
   document.getElementById('modalTitle').textContent = '受注追加';
-  ['f_name','f_amount','f_planned_start','f_planned_delivery','f_actual_start',
+  ['f_order_no','f_name','f_amount','f_planned_start','f_planned_delivery','f_actual_start',
    'f_actual_delivery','f_actual_design','f_actual_material','f_actual_process','f_actual_assembly'].forEach(id => {
     document.getElementById(id).value = '';
   });
@@ -1710,6 +1853,7 @@ function openEditModal(id) {
   if (!p) return;
   editingId = id;
   document.getElementById('modalTitle').textContent = '受注編集';
+  document.getElementById('f_order_no').value = p.orderNo || '';
   document.getElementById('f_name').value = p.name || '';
   document.getElementById('f_type').value = p.type || '計画';
   document.getElementById('f_amount').value = p.amount ? Number(p.amount).toLocaleString('ja-JP') : '';
@@ -2347,6 +2491,7 @@ function saveProject() {
 
   const proj = {
     id: editingId || Date.now().toString(),
+    orderNo: document.getElementById('f_order_no').value.trim(),
     name,
     type: document.getElementById('f_type').value,
     amount: document.getElementById('f_amount').value.replace(/,/g, ''),
@@ -2748,6 +2893,7 @@ function init() {
   loadSettings();
   loadTrash();
   loadArchive();
+  loadMatchFlags();
 
   if (db) {
     // Firebase リアルタイム同期：データが変わるたびに全クライアントが自動更新
@@ -2780,6 +2926,104 @@ function init() {
   }
 }
 
+// ===========================
+// 認証（Firebase Authentication）
+// ===========================
+let _appStarted = false;
+
+function authErr(msg, ok) {
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.className = 'auth-error show' + (ok ? ' auth-ok' : '');
+}
+function authErrClear() { document.getElementById('authError').className = 'auth-error'; }
+
+function authMessage(code) {
+  switch (code) {
+    case 'auth/invalid-email':        return 'メールアドレスの形式が正しくありません。';
+    case 'auth/user-disabled':        return 'このアカウントは無効化されています。管理者にご連絡ください。';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':   return 'メールアドレスまたはパスワードが違います。';
+    case 'auth/too-many-requests':    return '試行回数が多すぎます。しばらく待ってからお試しください。';
+    case 'auth/network-request-failed': return 'ネットワークに接続できません。通信状況をご確認ください。';
+    case 'auth/operation-not-allowed': return 'メール／パスワード認証が有効になっていません。Firebaseコンソールで有効化してください。';
+    default: return 'ログインに失敗しました（' + code + '）';
+  }
+}
+
+function doLogin(e) {
+  e.preventDefault();
+  if (!auth) return;
+  const email = document.getElementById('authEmail').value.trim();
+  const pass  = document.getElementById('authPass').value;
+  const keep  = document.getElementById('authRemember').checked;
+  const btn   = document.getElementById('authBtn');
+
+  authErrClear();
+  btn.disabled = true; btn.textContent = 'ログイン中…';
+
+  const persist = keep ? firebase.auth.Auth.Persistence.LOCAL
+                       : firebase.auth.Auth.Persistence.SESSION;
+  auth.setPersistence(persist)
+    .then(() => auth.signInWithEmailAndPassword(email, pass))
+    .catch(err => {
+      authErr(authMessage(err.code));
+      btn.disabled = false; btn.textContent = 'ログイン';
+    });
+}
+
+function sendReset() {
+  if (!auth) return;
+  const email = document.getElementById('authEmail').value.trim();
+  if (!email) { authErr('先にメールアドレスを入力してください。'); return; }
+  auth.sendPasswordResetEmail(email)
+    .then(() => authErr('パスワード再設定メールを送信しました。受信箱をご確認ください。', true))
+    .catch(err => authErr(authMessage(err.code)));
+}
+
+function doLogout() {
+  if (!auth) return;
+  if (!confirm('ログアウトしますか？')) return;
+  auth.signOut().then(() => location.reload());
+}
+
+function showAuthGate() {
+  document.getElementById('authLoading').style.display = 'none';
+  document.getElementById('authGate').style.display = 'flex';
+  const btn = document.getElementById('authBtn');
+  btn.disabled = false; btn.textContent = 'ログイン';
+  document.getElementById('authPass').value = '';
+  setTimeout(() => {
+    const el = document.getElementById('authEmail');
+    (el.value ? document.getElementById('authPass') : el).focus();
+  }, 80);
+}
+
+function startApp(user) {
+  document.getElementById('authLoading').style.display = 'none';
+  document.getElementById('authGate').style.display = 'none';
+  const badge = document.getElementById('userBadge');
+  if (badge && user) {
+    badge.style.display = 'inline-flex';
+    badge.innerHTML = `👤 ${escHtml(user.email || '')}
+      <span onclick="doLogout()" style="cursor:pointer;text-decoration:underline;opacity:.85">ログアウト</span>`;
+  }
+  if (_appStarted) return;
+  _appStarted = true;
+  init();
+}
+
+// 認証状態を監視してアプリ起動を制御
+if (auth) {
+  auth.onAuthStateChanged(user => { user ? startApp(user) : showAuthGate(); });
+} else {
+  // Firebase未設定時（ローカル検証用）は認証なしで起動
+  document.getElementById('authLoading').style.display = 'none';
+  _appStarted = true;
+  init();
+}
+
 // Close modal on overlay click
 document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
 
@@ -2798,7 +3042,7 @@ window.addEventListener('resize', () => {
   resizeTimer = setTimeout(() => { renderGantt(); }, 200);
 });
 
-init();
+// init() は認証成功後に startApp() から呼び出されます
 </script>
 </body>
 </html>
