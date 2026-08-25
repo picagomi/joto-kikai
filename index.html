@@ -405,6 +405,41 @@
   .cal-fl-n { font-size:10px;color:#999;flex-shrink:0; }
   .cal-fl-dot { width:12px;height:12px;border-radius:3px;flex-shrink:0;border-left:3px solid; }
   .cal-fl-empty { opacity:0.45; }
+  /* ===== 照合タブ ===== */
+  .match-bar { display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:8px 4px 10px;border-bottom:1px solid #eef1f5;margin-bottom:10px; }
+  .match-fl { display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#555;cursor:pointer; }
+  .match-fl select { font-size:12px;padding:3px 6px;border:1px solid #d5dbe3;border-radius:5px; }
+  .match-search { flex:1;min-width:150px;font-size:12px;padding:5px 9px;border:1px solid #d5dbe3;border-radius:6px; }
+  .match-count { font-size:12px;color:#888;white-space:nowrap; }
+  .match-summary { display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px; }
+  .ms-card { flex:1;min-width:104px;background:#f7f9fc;border:1px solid #e5eaf0;border-left:4px solid #2c6fad;border-radius:6px;padding:7px 10px; }
+  .ms-card .l { font-size:10px;color:#888;margin-bottom:2px; }
+  .ms-card .v { font-size:17px;font-weight:800;color:#2c3e50; }
+  .ms-card.warn { border-left-color:#e67e22; } .ms-card.bad { border-left-color:#e74c3c; }
+  .ms-card.ok { border-left-color:#27ae60; }
+  .match-table { width:100%;border-collapse:collapse;font-size:11px; }
+  .match-table th { background:#eef4fb;padding:6px 5px;border:1px solid #d8e2ec;font-weight:700;white-space:nowrap;color:#2c3e50;font-size:10px; }
+  .match-table td { padding:5px;border:1px solid #e3e8ee;vertical-align:top; }
+  .match-table tr:hover td { background:#f7fbff; }
+  .mt-nm { min-width:150px;word-break:break-word;font-weight:600; }
+  .mt-src { min-width:150px;word-break:break-word;color:#555; }
+  .mt-no { font-family:ui-monospace,monospace;font-size:9px;color:#888;white-space:nowrap; }
+  .mt-c { text-align:center;white-space:nowrap; }
+  .mt-am { text-align:right;white-space:nowrap; }
+  .mt-sim { text-align:center;font-weight:700;white-space:nowrap; }
+  .sim-hi { color:#27ae60; } .sim-mid { color:#e67e22; } .sim-lo { color:#c0392b; }
+  .gapv { display:inline-block;font-weight:700;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap; }
+  .gap-0 { background:#e8f6ec;color:#1e7e34; }
+  .gap-s { background:#fff4d6;color:#8a6100; }
+  .gap-l { background:#fdecea;color:#c0392b; }
+  .gap-na{ background:#f1f3f5;color:#999; }
+  .mt-dates { font-size:10px;color:#666;line-height:1.5;white-space:nowrap; }
+  .mt-nomatch td { background:#fffbf5; }
+  @media (max-width:640px) {
+    .match-table { font-size:10px; }
+    .match-table th, .match-table td { padding:4px 3px; }
+    .mt-nm, .mt-src { min-width:110px; }
+  }
   @media screen and (max-width:640px) {
     .cal-month { padding:8px 5px; }
     .cal-month-title { font-size:15px; }
@@ -416,6 +451,19 @@
     .cal-sticky { padding:2px 3px;border-left-width:3px;margin-bottom:2px; }
     .cal-sticky-cmt { font-size:7px; }
     .cal-sticky-prj { font-size:6px; }
+  }
+  /* 照合タブ印刷 */
+  body.printing-match #matchSection { display:block !important; }
+  @media print {
+    body.printing-match > *:not(#matchSection) { display:none !important; }
+    body.printing-match .app-header, body.printing-match .match-bar,
+    body.printing-match .section-header button { display:none !important; }
+    body.printing-match #matchSection { box-shadow:none;border:none;padding:6mm; }
+    body.printing-match .match-table { font-size:8px; }
+    body.printing-match .match-table tr { page-break-inside:avoid; }
+    body.printing-match .match-table thead { display:table-header-group; }
+    body.printing-match .match-table th, body.printing-match .gapv,
+    body.printing-match .ms-card { -webkit-print-color-adjust:exact;print-color-adjust:exact; }
   }
   /* margin:0 でブラウザ既定のヘッダー/フッター（URL・日付・ページ番号）を出さない */
   @page { size: A4 landscape; margin: 0; }
@@ -448,6 +496,7 @@
   <div class="header-actions">
     <button class="btn btn-success" onclick="openAddModal()">＋ 受注追加</button>
     <button class="btn btn-ghost" onclick="printAllCalendar()">📅 カレンダー</button>
+    <button class="btn btn-ghost" onclick="toggleMatch()">🔍 照合</button>
     <button class="btn btn-ghost" onclick="exportData()">📥 エクスポート</button>
     <button class="btn btn-ghost" onclick="toggleArchive()">📦 アーカイブ<span id="archiveBadge" style="display:none" class="archive-badge"></span></button>
     <button class="btn btn-ghost" onclick="toggleTrash()">🗑 ゴミ箱<span id="trashBadge" style="display:none" class="trash-badge"></span></button>
@@ -499,6 +548,35 @@
       <div id="archiveContent"></div>
     </div>
     <div id="archiveGanttArea" style="margin-top:16px;overflow-x:auto"></div>
+  </div>
+
+  <!-- 工程管理表 照合 -->
+  <div class="section" id="matchSection" style="display:none">
+    <div class="section-header">
+      <h2>🔍 工程管理表との照合</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-sm" onclick="printMatchTable()" style="background:#e8f4fd;color:#2c6fad;border:1px solid #c5d9ed">🖨 印刷</button>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#777;padding:0 4px 8px">
+      工程管理表（売上区分＝未完了 123件）とアプリ内の受注を<b>受注品名の類似度＋受注金額の一致度</b>で自動照合し、各工程日と金額の乖離を表示します。
+    </div>
+    <div class="match-bar">
+      <label class="match-fl">類似度
+        <select id="mtThreshold" onchange="renderMatch()">
+          <option value="0.6">60%以上</option>
+          <option value="0.45">45%以上</option>
+          <option value="0.3" selected>30%以上</option>
+          <option value="0.2">20%以上</option>
+        </select>
+      </label>
+      <label class="match-fl"><input type="checkbox" id="mtOnlyDiff" onchange="renderMatch()"> 乖離ありのみ</label>
+      <label class="match-fl"><input type="checkbox" id="mtOnlyMatched" checked onchange="renderMatch()"> 照合できたもののみ</label>
+      <input type="text" id="mtSearch" placeholder="🔍 受注品名で絞込" oninput="renderMatch()" class="match-search">
+      <span id="mtCount" class="match-count"></span>
+    </div>
+    <div id="matchSummary" class="match-summary"></div>
+    <div style="overflow-x:auto"><div id="matchContent"></div></div>
   </div>
 
   <!-- Trash Panel -->
@@ -972,6 +1050,245 @@ function renderSummary() {
       <div class="value">${fmtN(counts['組立'])}</div>
     </div>
   `;
+}
+
+
+// ===========================
+// 工程管理表 照合（売上区分＝未完了）
+// ===========================
+const KOTEI_DATA = [{"no":"J26262-INGK","nm":"角馳Ⅱ型成形機 摩耗ロール製作","am":252000,"nk":"2026-08-18","ks":"","ke":"","se":"","tk":"稲垣 千葉","st":"加工"},{"no":"J26057-KYMK","nm":"ルーフ88成型機 ポリ切れ対策ロール","am":0,"nk":"2026-08-20","ks":"","ke":"","se":"","tk":"小山金属潟東","st":"納品済"},{"no":"J26340-JHKN","nm":"NKK-160 電動シーマー（3段式）用部品①","am":65900,"nk":"2026-08-21","ks":"","ke":"","se":"","tk":"JFE北日建材","st":"手配"},{"no":"J26334-FKIZ","nm":"段葺ライン 定尺切断機用隅切金型研磨・調整","am":130000,"nk":"2026-08-26","ks":"","ke":"","se":"","tk":"福泉 静岡","st":"手配"},{"no":"J26358-GTBK","nm":"TRX-8成形品輸送費(8月25日発大型車)","am":152000,"nk":"2026-08-26","ks":"","ke":"","se":"","tk":"元旦 福島","st":"手配"},{"no":"J26305-KYMS","nm":"ステッカーマシン待機圧着用エアーシリンダー","am":47200,"nk":"2026-08-27","ks":"","ke":"","se":"","tk":"神山商事","st":"手配"},{"no":"J26328-KYMS","nm":"ステッカーマシンエアーシリンダー交換作業","am":126000,"nk":"2026-08-27","ks":"","ke":"","se":"","tk":"神山商事","st":"手配"},{"no":"J26332-KYMS","nm":"二山横葺成形機ロール製作","am":0,"nk":"2026-08-27","ks":"","ke":"","se":"","tk":"神山商事","st":"手配"},{"no":"J26166-SNJB","nm":"折畳式ｺｲﾙﾊｯｶｰ/2基(914/1000兼用)※15tﾌｯｸ,2.8ﾌｯｸ","am":860000,"nk":"2026-08-28","ks":"2026-08-24","ke":"2026-08-21","se":"2026-08-07","tk":"三條 庄内","st":"組立"},{"no":"J26276-FKIZ","nm":"段葺成型機 吊駆動部品","am":560760,"nk":"2026-08-28","ks":"","ke":"","se":"","tk":"福泉 静岡","st":"加工"},{"no":"J26317-FKIZ","nm":"段葺ライン 定尺切断機用切欠型ガイドポスト交換","am":48000,"nk":"2026-08-28","ks":"","ke":"","se":"","tk":"福泉 静岡","st":"手配"},{"no":"J26354-FKIZ","nm":"段葺ライン段付金型組付・調整費","am":350000,"nk":"2026-08-28","ks":"","ke":"","se":"","tk":"福泉 静岡","st":"出荷待"},{"no":"J26124-COCO","nm":"HK-500用電動シーマー","am":505000,"nk":"2026-08-31","ks":"","ke":"","se":"","tk":"こっこー 広島","st":"手配"},{"no":"J26236-SADS","nm":"丸馳用１段式電動シーマー、手動ガチャ","am":1244000,"nk":"2026-08-31","ks":"","ke":"","se":"","tk":"佐渡島 福岡","st":"手配"},{"no":"J26253-SADS","nm":"丸馳用１段式電動シーマー","am":454000,"nk":"2026-08-31","ks":"","ke":"","se":"","tk":"佐渡島 広島","st":"手配"},{"no":"J26292-ACLS","nm":"トリトン丸切断金型オーバーホール","am":500000,"nk":"2026-08-31","ks":"","ke":"","se":"","tk":"ｱｷﾚｽ 滋賀第二","st":"手配"},{"no":"J26293-ACLS","nm":"タテバリ切断金型用紙切り刃","am":190000,"nk":"2026-08-31","ks":"","ke":"","se":"","tk":"ｱｷﾚｽ 滋賀第二","st":"手配"},{"no":"J26306-SKAI","nm":"スリッター刃物新作","am":270000,"nk":"2026-08-31","ks":"","ke":"","se":"","tk":"ｻｶｲ","st":"手配"},{"no":"J26307-SKAI","nm":"スリッターライン スリッター刃、シャー刃、入替調整","am":582000,"nk":"2026-08-31","ks":"","ke":"","se":"","tk":"ｻｶｲ","st":"手配"},{"no":"J26310-KYWB","nm":"天晴ルーフラインアヤメ折専用機修理","am":322700,"nk":"2026-08-31","ks":"","ke":"","se":"","tk":"J-MEx 関東MOLD","st":"手配"},{"no":"J26320-SIWK","nm":"HK-500成形機 ソリ修正ロール取付、調整","am":550000,"nk":"2026-08-31","ks":"","ke":"","se":"","tk":"信和鋼板","st":"手配"},{"no":"J26333-FKTN","nm":"ｽﾘｯﾀｰ刃物再研磨及びｽﾘｯﾀｰ刃物新作","am":256800,"nk":"2026-08-31","ks":"","ke":"","se":"","tk":"ｴﾌ･ｹｰ･ﾃｸﾉ","st":"手配"},{"no":"J26343-INGK","nm":"段付装置用油圧ホース","am":39600,"nk":"2026-08-31","ks":"","ke":"","se":"","tk":"稲垣 神奈川","st":"手配"},{"no":"J25361-MTKF","nm":"SK角ハゼＶ-Ⅱ成形機","am":21500000,"nk":"2026-09-02","ks":"2026-06-29","ke":"2026-06-26","se":"","tk":"ﾒﾄｰｶｹﾌ","st":"調整"},{"no":"J26141-MTKF","nm":"ﾌﾞｻﾞｰ追加（新規SK角ﾊｾﾞＶ-Ⅱ成形機用）","am":300000,"nk":"2026-09-02","ks":"","ke":"","se":"","tk":"ﾒﾄｰｶｹﾌ","st":"出荷待"},{"no":"J26221-JNKB","nm":"新リベアルーフ 交換ロールお見積り","am":715000,"nk":"2026-09-03","ks":"","ke":"","se":"","tk":"JFE日建板九州","st":"出荷待"},{"no":"J26222-JNKB","nm":"V300成型機 現地ロール交換","am":1249400,"nk":"2026-09-03","ks":"","ke":"","se":"","tk":"JFE日建板九州","st":"出荷待"},{"no":"J26159-NNYM","nm":"隅切金型 交換（2連隅切付半裁定尺用）","am":2634000,"nk":"2026-09-04","ks":"","ke":"","se":"","tk":"野々山 岐阜","st":"加工"},{"no":"J26039-SNCH","nm":"摩耗ﾛｰﾙ交換（嵌合式立平葺333）","am":3646000,"nk":"2026-09-05","ks":"","ke":"","se":"","tk":"ｼﾝｺｰ 飯塚","st":"出荷待"},{"no":"J26329-AOMK","nm":"スリッターライン修理","am":456740,"nk":"2026-09-09","ks":"","ke":"","se":"","tk":"青森県板津軽","st":"手配"},{"no":"J26336-SMDS","nm":"ﾛｰﾙ製作（嵌合式立平葺333成形機用）","am":38000,"nk":"2026-09-11","ks":"","ke":"","se":"","tk":"下田商店","st":"手配"},{"no":"J25583-KYWB","nm":"天晴ﾙｰﾌ生産ﾗｲﾝ※ｱﾔﾒ一文字葺(定尺横葺)生産ﾗｲﾝ","am":76500000,"nk":"2026-09-14","ks":"2026-07-01","ke":"2026-08-07","se":"2026-05-15","tk":"J-MEx東日本関東MOLD","st":"組立"},{"no":"J26353-KYWB","nm":"スリッターラインタッチパネル保護シート","am":0,"nk":"2026-09-14","ks":"","ke":"","se":"","tk":"J-MEx 米沢","st":"手配"},{"no":"J26357-YODO","nm":"157セキュア成形機用ブラケットハンドル","am":106100,"nk":"2026-09-14","ks":"","ke":"","se":"","tk":"ﾖﾄﾞｺｳ","st":"手配"},{"no":"J26278-JNKB","nm":"電動シーマ改造（Jロック用へ変更）資産コード30054","am":322760,"nk":"2026-09-15","ks":"","ke":"","se":"","tk":"JFE日建板関東","st":"組立"},{"no":"J26279-JNKB","nm":"電動シーマ改造（Jロック用へ変更）資産コード10046","am":484760,"nk":"2026-09-15","ks":"","ke":"","se":"","tk":"JFE日建板関東","st":"組立"},{"no":"J26280-JNKB","nm":"電動シーマ改造（Jロック用へ変更）資産コード10047","am":322760,"nk":"2026-09-15","ks":"","ke":"","se":"","tk":"JFE日建板関東","st":"組立"},{"no":"J26281-JNKB","nm":"電動シーマ改造（Jロック用へ変更）資産コード30077","am":312760,"nk":"2026-09-15","ks":"","ke":"","se":"","tk":"JFE日建板関東","st":"組立"},{"no":"J26322-ITEC","nm":"FD成形設備レベラー部品","am":270000,"nk":"2026-09-16","ks":"","ke":"","se":"","tk":"ｱｲ･ﾃｯｸ","st":"手配"},{"no":"J26220-JNKB","nm":"他社製 山葺キャップ成型機 出口コロガリ","am":47000,"nk":"2026-09-18","ks":"","ke":"","se":"","tk":"JFE日建板九州","st":"未着手"},{"no":"J26270-JNKB","nm":"カップ式アンコイラー駆動主軸交換","am":629700,"nk":"2026-09-18","ks":"","ke":"","se":"","tk":"JFE日建板関東","st":"手配"},{"no":"J26323-JNKB","nm":"特殊瓦棒キャップ化粧カバー成型機調整","am":100000,"nk":"2026-09-18","ks":"","ke":"","se":"","tk":"JFE日建板関東","st":"手配"},{"no":"J26349-JNKB","nm":"カップ式アンコイラー駆動主軸交換追加部品","am":199800,"nk":"2026-09-18","ks":"","ke":"","se":"","tk":"JFE日建板関東","st":"手配"},{"no":"J26174-JHKN","nm":"点検ﾒﾝﾃﾅﾝｽ","am":1219000,"nk":"2026-09-20","ks":"","ke":"","se":"","tk":"JFE北日建材 小樽","st":"手配"},{"no":"J26196-JHKN","nm":"デッキプレート成形機 上ハゼ調整","am":0,"nk":"2026-09-20","ks":"","ke":"","se":"","tk":"JFE北日建材","st":"手配"},{"no":"J26156-SNKK","nm":"動力式 大型コイル台","am":2350000,"nk":"2026-09-22","ks":"2026-09-07","ke":"2026-09-04","se":"2026-07-17","tk":"三晃 東北","st":"加工"},{"no":"J24002-GTBK","nm":"L-100本体成型機","am":22050000,"nk":"2026-09-24","ks":"2026-02-09","ke":"2025-12-26","se":"","tk":"元旦 福島","st":"再調整"},{"no":"J25283-GTBK","nm":"TRX-8成形機 (架台分割タイプ)","am":48000000,"nk":"2026-09-24","ks":"2026-05-25","ke":"2026-05-22","se":"2026-03-31","tk":"元旦 福島","st":"再調整"},{"no":"J26255-SNJB","nm":"ノードソン H２０モジュール用 パッキンセット","am":44820,"nk":"2026-09-24","ks":"","ke":"","se":"","tk":"三條物産","st":"手配"},{"no":"J26240-KONG","nm":"アルミドア生産ラインコンベヤ改造","am":0,"nk":"2026-09-25","ks":"","ke":"","se":"","tk":"金剛産業那須","st":"出荷待"},{"no":"J21003-SNKK","nm":"丸馳折版ロックⅠ型成形機 1号機","am":18800000,"nk":"2026-09-29","ks":"2025-11-03","ke":"2026-01-09","se":"","tk":"三晃金属工業","st":"保留"},{"no":"J23002-SNKK","nm":"丸馳折版Ⅱ型成形機 6号機","am":18980000,"nk":"2026-09-29","ks":"2026-08-24","ke":"2026-08-21","se":"2026-06-30","tk":"三晃金属工業","st":"加工"},{"no":"J24101-SNKK","nm":"丸馳折版ﾛｯｸⅠ型成型機 1号機 側面カバー","am":240000,"nk":"2026-09-29","ks":"","ke":"","se":"","tk":"三晃金属工業","st":"手配"},{"no":"J24106-SNKK","nm":"丸馳折版Ⅱ型成型機 6号機 側面カバー","am":240000,"nk":"2026-09-29","ks":"","ke":"","se":"","tk":"三晃金属工業","st":"手配"},{"no":"J25104-YMTS","nm":"スマートウォールYS成型機","am":18000000,"nk":"2026-09-29","ks":"2026-08-17","ke":"2026-08-07","se":"","tk":"ﾔﾏﾄC&C 関東","st":"保留"},{"no":"J25204-SNKK","nm":"警報機・エア検知 機器取付（丸馳ﾛｯｸⅠ型1号機用）","am":285000,"nk":"2026-09-29","ks":"","ke":"","se":"","tk":"三晃金属工業","st":"手配"},{"no":"J25460-SNKK","nm":"5トン片持式自動アンコイラー（1号機）","am":6000000,"nk":"2026-09-29","ks":"2026-09-07","ke":"2026-09-04","se":"2026-07-17","tk":"三晃金属","st":"加工"},{"no":"J25461-SNKK","nm":"定尺自動切断機（1号機）","am":8200000,"nk":"2026-09-29","ks":"2026-09-07","ke":"2026-09-04","se":"2026-07-17","tk":"三晃金属","st":"加工"},{"no":"J24014-YODO","nm":"ヨド166ハゼ 東栄ルーフ工業様 ロール製作、調整費","am":900000,"nk":"2026-09-30","ks":"2025-12-24","ke":"","se":"","tk":"淀川製鋼所","st":"手配"},{"no":"J25098-HRSM","nm":"成形機自動化に向けたシーケンサ改修","am":38656500,"nk":"2026-09-30","ks":"","ke":"","se":"","tk":"平島","st":"調整"},{"no":"J25379-YODO","nm":"ヨドルーフ90ハゼロール成型機","am":38300000,"nk":"2026-09-30","ks":"2026-04-20","ke":"2026-03-20","se":"2026-02-04","tk":"ﾖﾄﾞｺｳ","st":"調整"},{"no":"J26215-MAJA","nm":"ﾒｼﾞｬｰﾛｰﾙ製作（各種定尺切断機用）","am":880000,"nk":"2026-09-30","ks":"","ke":"","se":"","tk":"MAJA","st":"出荷待"},{"no":"J26325-SAEK","nm":"逆転防止装置 板押え上型","am":0,"nk":"2026-09-30","ks":"","ke":"","se":"","tk":"佐伯金属","st":"手配"},{"no":"J26330-YODO","nm":"ﾖﾄﾞ166ﾊｾﾞ 東栄ﾙｰﾌ工業様 ロール製作、調整費","am":900000,"nk":"2026-09-30","ks":"","ke":"","se":"","tk":"ﾖﾄﾞｺｳ","st":"手配"},{"no":"J26345-JHKN","nm":"NKK-160 電動シーマー（3段式）用部品②","am":731500,"nk":"2026-10-07","ks":"","ke":"","se":"","tk":"JFE北日建材","st":"手配"},{"no":"J25398-KTYM","nm":"角馳Ⅱ型成形機（架台2分割ﾀｲﾌﾟ）","am":22900000,"nk":"2026-10-15","ks":"2026-09-07","ke":"2026-09-04","se":"","tk":"片山 東北","st":"加工"},{"no":"J26352-SADS","nm":"丸馳用１段式電動シーマー、手動ガチャ","am":602000,"nk":"2026-10-16","ks":"","ke":"","se":"","tk":"佐渡島 広島","st":"設計"},{"no":"J26104-MTKF","nm":"半裁定尺自動切断ライン（2号機）","am":13700000,"nk":"2026-10-19","ks":"2026-09-21","ke":"2026-09-18","se":"2026-08-07","tk":"ﾒﾄｰｶｹﾌ","st":"設計"},{"no":"J26350-KKBN","nm":"ｼｬｰﾘﾝｸﾞ四方刃 新規製作（ｽﾘｯﾀｰ2段付定尺用）","am":453000,"nk":"2026-10-20","ks":"","ke":"","se":"","tk":"ｷｸﾊﾞﾝ","st":"手配"},{"no":"J26355-JHKN","nm":"３段式電動ｼｰﾏ 固定側ﾛｰﾙｼｬﾌﾄ製作（構想案③）","am":45000,"nk":"2026-10-20","ks":"","ke":"","se":"","tk":"JFE北日建材","st":"手配"},{"no":"J26026-YODO","nm":"ヨドルーフ166ハゼロール成形機 1台目","am":25900000,"nk":"2026-10-29","ks":"2026-09-28","ke":"2026-09-18","se":"2026-05-22","tk":"ﾖﾄﾞｺｳ","st":"加工"},{"no":"J26211-SGRK","nm":"天板成形機摩耗ロール製作費","am":886400,"nk":"2026-10-30","ks":"","ke":"","se":"","tk":"ｼｹﾞﾙ工業上越","st":"手配"},{"no":"J26252-SADS","nm":"丸馳用１段式電動シーマー、手動ガチャ","am":1866000,"nk":"2026-10-30","ks":"","ke":"","se":"","tk":"佐渡島 福岡","st":"手配"},{"no":"J26312-SNCH","nm":"4尺幅レベラー付定尺切断機予備部品","am":550000,"nk":"2026-10-30","ks":"","ke":"","se":"","tk":"ｼﾝｺｰ 飯塚","st":"手配"},{"no":"J26351-SNJB","nm":"一山横葺成型機ロール製作（焼入れ）","am":192000,"nk":"2026-11-19","ks":"","ke":"","se":"","tk":"三條物産","st":"手配"},{"no":"J26356-JHKN","nm":"３段式電動シーマ修理 （札幌）","am":207440,"nk":"2026-11-20","ks":"","ke":"","se":"","tk":"JFE北日建材","st":"手配"},{"no":"J23003-SNKK","nm":"丸馳折版Ⅱ型成形機 7号機","am":18980000,"nk":"2026-11-26","ks":"2026-10-19","ke":"2026-10-16","se":"2026-07-31","tk":"三晃金属工業","st":"設計"},{"no":"J24107-SNKK","nm":"丸馳折版Ⅱ型成型機 7号機 側面カバー","am":240000,"nk":"2026-11-26","ks":"","ke":"","se":"","tk":"三晃金属工業","st":"設計"},{"no":"J26099-CYDK","nm":"角馳Ⅱ型成形機（CK折板馳2型成形機）","am":23000000,"nk":"2026-11-26","ks":"2026-10-12","ke":"2026-10-09","se":"2026-07-31","tk":"千代田鋼鉄","st":"設計"},{"no":"J26327-KWKB","nm":"動力式 大型コイル台","am":2700000,"nk":"2026-11-26","ks":"2026-11-02","ke":"2026-10-30","se":"2026-09-11","tk":"川上板金","st":"設計"},{"no":"J25462-SNKK","nm":"5トン片持式自動アンコイラー（2号機）","am":6000000,"nk":"2026-11-30","ks":"2026-10-05","ke":"2026-10-02","se":"2026-07-31","tk":"三晃金属","st":"未着手"},{"no":"J25463-SNKK","nm":"定尺自動切断機（2号機）","am":8200000,"nk":"2026-11-30","ks":"2026-10-05","ke":"2026-10-02","se":"2026-07-31","tk":"三晃金属","st":"未着手"},{"no":"J26027-YODO","nm":"ヨドルーフ166ハゼロール成形機 2台目","am":25900000,"nk":"2026-11-30","ks":"2026-10-19","ke":"2026-09-30","se":"2026-07-31","tk":"ﾖﾄﾞｺｳ","st":"設計"},{"no":"J26168-YODO","nm":"もやC成形機修繕見積","am":4981500,"nk":"2026-11-30","ks":"","ke":"","se":"","tk":"ﾖﾄﾞｺｳ","st":"手配"},{"no":"J26169-YODO","nm":"もやA、もやB成形機修繕見積書","am":3504000,"nk":"2026-11-30","ks":"","ke":"","se":"","tk":"ﾖﾄﾞｺｳ","st":"手配"},{"no":"J26359-SADS","nm":"丸馳用１段式電動シーマー、手動ガチャ","am":1244000,"nk":"2026-11-30","ks":"","ke":"","se":"","tk":"佐渡島 南九州","st":"手配"},{"no":"J21004-SNKK","nm":"丸馳折版ロックⅠ型成形機 3号機","am":18800000,"nk":"2026-12-17","ks":"2026-10-19","ke":"2026-10-16","se":"2026-09-30","tk":"三晃金属工業","st":"保留"},{"no":"J23004-SNKK","nm":"丸馳折版Ⅱ型成形機 8号機","am":18980000,"nk":"2026-12-17","ks":"2026-11-16","ke":"2026-10-23","se":"2026-09-04","tk":"三晃金属工業","st":"未着手"},{"no":"J24103-SNKK","nm":"丸馳折版ﾛｯｸⅠ型成型機 3号機 側面カバー","am":240000,"nk":"2026-12-17","ks":"","ke":"","se":"","tk":"三晃金属工業","st":"手配"},{"no":"J24108-SNKK","nm":"丸馳折版Ⅱ型成型機 8号機 側面カバー","am":240000,"nk":"2026-12-17","ks":"","ke":"","se":"","tk":"三晃金属工業","st":"未着手"},{"no":"J25206-SNKK","nm":"警報機・エア検知 機器取付（丸馳ﾛｯｸⅠ型3号機用）","am":285000,"nk":"2026-12-17","ks":"","ke":"","se":"","tk":"三晃金属工業","st":"手配"},{"no":"J26105-MTKF","nm":"嵌合式立平葺333成形機（H25）","am":14500000,"nk":"2026-12-17","ks":"2026-11-09","ke":"2026-10-16","se":"2026-08-21","tk":"ﾒﾄｰｶｹﾌ","st":"未着手"},{"no":"J26246-INGK","nm":"スタンビー333 摩耗ロール製作（43個SCM440）","am":1419000,"nk":"2026-12-18","ks":"","ke":"","se":"","tk":"稲垣 群馬","st":"手配"},{"no":"J26247-INGK","nm":"スタンビー455 摩耗ロール製作（1個SCM440）","am":33000,"nk":"2026-12-18","ks":"","ke":"","se":"","tk":"稲垣 群馬","st":"手配"},{"no":"J26248-INGK","nm":"唐草 摩耗ロール製作（18個 SCM440）","am":594000,"nk":"2026-12-18","ks":"","ke":"","se":"","tk":"稲垣 群馬","st":"手配"},{"no":"J26335-BMCK","nm":"スリッターライン カウンター交換","am":316600,"nk":"2026-12-18","ks":"","ke":"","se":"","tk":"BMC 行田","st":"手配"},{"no":"J25464-SNKK","nm":"5トン片持式自動アンコイラー（3号機）","am":6000000,"nk":"2026-12-24","ks":"2026-11-23","ke":"2026-11-13","se":"2026-08-31","tk":"三晃金属","st":"未着手"},{"no":"J25465-SNKK","nm":"定尺自動切断機（3号機）","am":8200000,"nk":"2026-12-24","ks":"2026-11-23","ke":"2026-11-13","se":"2026-08-31","tk":"三晃金属","st":"未着手"},{"no":"J26223-KYWB","nm":"Ｚワイドルーフ273成形機（一山273タイプ）","am":13300000,"nk":"2027-01-20","ks":"2026-12-07","ke":"2026-12-04","se":"2026-09-25","tk":"J-MEx東日本","st":"未着手"},{"no":"J26291-STAR","nm":"ガレージ折板用電動シーマー３号機","am":950000,"nk":"2027-01-20","ks":"2026-12-21","ke":"2026-12-18","se":"2026-10-30","tk":"STEELARCH","st":"未着手"},{"no":"J25466-SNKK","nm":"5トン片持式自動アンコイラー（4号機）","am":6000000,"nk":"2027-01-21","ks":"2027-01-05","ke":"2026-12-25","se":"2026-09-30","tk":"三晃金属","st":"未着手"},{"no":"J25467-SNKK","nm":"定尺自動切断機（4号機）","am":8200000,"nk":"2027-01-21","ks":"2027-01-05","ke":"2026-12-25","se":"2026-09-30","tk":"三晃金属","st":"未着手"},{"no":"J26138-JFKH","nm":"可変式フラットルーフ成形機（H30）","am":21950000,"nk":"2027-01-25","ks":"2026-11-16","ke":"2026-11-13","se":"2026-09-18","tk":"JFE鋼板","st":"未着手"},{"no":"J26139-JFKH","nm":"電動シーマー（可変式フラットルーフH30用）","am":1900000,"nk":"2027-01-25","ks":"2026-12-01","ke":"2026-11-30","se":"2026-09-18","tk":"JFE鋼板","st":"未着手"},{"no":"J26140-JFKH","nm":"手動ガチャ（可変式フラットルーフH30用）","am":800000,"nk":"2027-01-25","ks":"2026-12-01","ke":"2026-11-30","se":"2026-09-18","tk":"JFE鋼板","st":"未着手"},{"no":"J26269-MGSM","nm":"可変式嵌合立平葺成形機(H30)＆ﾎｯﾄﾒﾙﾄｼｽﾃﾑ","am":31600000,"nk":"2027-02-19","ks":"2026-12-21","ke":"2026-12-18","se":"2026-09-30","tk":"宮城ｻｸﾏ","st":"未着手"},{"no":"J21001-SNKK","nm":"丸馳折版ロックⅡ型成形機 1号機","am":0,"nk":"2027-02-25","ks":"2025-10-13","ke":"2025-10-31","se":"","tk":"三晃金属工業","st":"保留"},{"no":"J21002-SNKK","nm":"丸馳折版ロックⅡ型成形機 2号機","am":0,"nk":"2027-03-30","ks":"","ke":"","se":"","tk":"三晃金属工業","st":"保留"},{"no":"J26022-SOGO","nm":"年次点検2026（成形ｼｬｰﾗｲﾝ,天梁ﾗｲﾝ,ｷｰｽﾄﾝ,ﾊﾟｲﾗｰ）","am":130000,"nk":"2027-03-31","ks":"","ke":"","se":"","tk":"ｿｰｺﾞ 東北","st":"出荷待"},{"no":"J24001-JOTO","nm":"自社在庫分 3.5トンアンコイラー","am":0,"nk":"","ks":"","ke":"","se":"","tk":"城東","st":"保留"},{"no":"J24001-NHNB","nm":"アヤメライン全体・折り措置シーケンサー部品","am":372640,"nk":"","ks":"","ke":"","se":"","tk":"日本板金興業","st":"保留"},{"no":"J24001-SNKK","nm":"丸馳折板Ⅱ型成形機(1号機) 不具合修繕","am":0,"nk":"","ks":"","ke":"","se":"","tk":"三晃金属工業","st":""},{"no":"J24002-JOTO","nm":"自社在庫分 1m幅定尺切断機","am":0,"nk":"","ks":"","ke":"","se":"","tk":"城東","st":"保留"},{"no":"J24049-OHTS","nm":"立平葺成型機 Ｒ曲げ対策 ロール有","am":0,"nk":"","ks":"","ke":"","se":"","tk":"太田商事","st":"？"},{"no":"J24097-GTBK","nm":"MA-7走行切断機ﾘﾚｰ交換","am":0,"nk":"","ks":"","ke":"","se":"","tk":"元旦 福島","st":"納品済"},{"no":"J24111-NNBY","nm":"瓦棒用手動ガチャ(丸ハゼ用57タイプ)","am":136000,"nk":"","ks":"","ke":"","se":"","tk":"南部屋","st":"保留"},{"no":"J24113-SGMT","nm":"ステッカーマシンタッチパネル交換","am":400000,"nk":"","ks":"","ke":"","se":"","tk":"シグマット","st":"？"},{"no":"J24137-YSDK","nm":"隅切金型フットスイッチ改造","am":0,"nk":"","ks":"","ke":"","se":"","tk":"吉田金属","st":"保留"},{"no":"J25263-SNDM","nm":"協和仙台ステッカーマシン不具合調整確認","am":0,"nk":"","ks":"","ke":"","se":"","tk":"仙台MOLD","st":"？"},{"no":"J25265-BMCK","nm":"片持アンコイラー及びスリッターライン点検調整","am":0,"nk":"","ks":"","ke":"","se":"","tk":"BMC 秋田","st":"？"},{"no":"J25330-INMD","nm":"ｽﾃｯｶｰ用ｴｱｰｼﾘﾝﾀﾞｰ取付、ｶﾊﾞｰﾙｰﾌ調整費","am":149500,"nk":"","ks":"","ke":"","se":"","tk":"伊那MOLD","st":"？"},{"no":"J25514-JNKB","nm":"Sタイプ3号機 ベアリング交換（異音クレーム）","am":0,"nk":"","ks":"","ke":"","se":"","tk":"JFE日建板関東","st":"保留"},{"no":"J26115-IKKU","nm":"板押さえ部品","am":0,"nk":"","ks":"","ke":"","se":"","tk":"一角","st":"手配"}];
+
+// 受注品名の正規化：全角英数→半角、ローマ数字・カナ統一、記号/空白除去
+function normName(s) {
+  let t = String(s || '');
+  t = t.replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  t = t.replace(/[ｦ-ﾟ]/g, c => {
+    const M = {'ｶﾞ':'ガ','ｷﾞ':'ギ','ｸﾞ':'グ','ｹﾞ':'ゲ','ｺﾞ':'ゴ','ｻﾞ':'ザ','ｼﾞ':'ジ','ｽﾞ':'ズ','ｾﾞ':'ゼ','ｿﾞ':'ゾ',
+             'ﾀﾞ':'ダ','ﾁﾞ':'ヂ','ﾂﾞ':'ヅ','ﾃﾞ':'デ','ﾄﾞ':'ド','ﾊﾞ':'バ','ﾋﾞ':'ビ','ﾌﾞ':'ブ','ﾍﾞ':'ベ','ﾎﾞ':'ボ',
+             'ﾊﾟ':'パ','ﾋﾟ':'ピ','ﾌﾟ':'プ','ﾍﾟ':'ペ','ﾎﾟ':'ポ'};
+    return M[c] || c;
+  });
+  // 半角カナ→全角カナ
+  const HK='ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜｦﾝｧｨｩｪｫｬｭｮｯｰ';
+  const ZK='アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンァィゥェォャュョッー';
+  t = t.replace(/[ｦ-ﾟ]/g, c => { const i = HK.indexOf(c); return i >= 0 ? ZK[i] : c; });
+  t = t.replace(/[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]/g, c => ['Ⅰ','Ⅱ','Ⅲ','Ⅳ','Ⅴ','Ⅵ','Ⅶ','Ⅷ','Ⅸ','Ⅹ'].indexOf(c) + 1 + '');
+  t = t.replace(/I{1,3}V?|IV|VI{0,3}/g, m => ({'I':'1','II':'2','III':'3','IV':'4','V':'5','VI':'6','VII':'7','VIII':'8'}[m] || m));
+  // 丸囲み数字 ①→1（「6号機」と「⑥」を同一視するため）
+  t = t.replace(/[①-⑳]/g, c => (c.charCodeAt(0) - 0x2460 + 1) + '');
+  t = t.replace(/[❶-❿]/g, c => (c.charCodeAt(0) - 0x2775 + 1) + '');
+  t = t.replace(/^\s*\d{1,2}\/\d{1,2}\s*/, '');           // 先頭の「8/31 」等を除去
+  t = t.replace(/号機|台目|号車/g, '');                    // 「6号機」→「6」
+  t = t.toUpperCase();
+  t = t.replace(/[\s　・／\/（）()「」【】\[\]、。,\.\-‐－ー~〜※＊*#＃:：;；]/g, '');
+  return t;
+}
+
+// bigram Dice係数
+function simScore(a, b) {
+  const A = normName(a), B = normName(b);
+  if (!A || !B) return 0;
+  if (A === B) return 1;
+  if (A.length < 2 || B.length < 2) return A === B ? 1 : 0;
+  const gm = s => { const m = new Map(); for (let i = 0; i < s.length - 1; i++) { const g = s.substr(i, 2); m.set(g, (m.get(g) || 0) + 1); } return m; };
+  const ma = gm(A), mb = gm(B);
+  let inter = 0, na = 0, nb = 0;
+  ma.forEach(v => na += v); mb.forEach(v => nb += v);
+  ma.forEach((v, k) => { if (mb.has(k)) inter += Math.min(v, mb.get(k)); });
+  return (2 * inter) / (na + nb);
+}
+
+function dOnly(s) { const d = parseDate(s); if (d) d.setHours(0,0,0,0); return d; }
+function diffDays(a, b) {
+  if (!a || !b) return null;
+  return Math.round((a.getTime() - b.getTime()) / 86400000);
+}
+function gapChip(days) {
+  if (days === null) return '<span class="gapv gap-na">—</span>';
+  const abs = Math.abs(days);
+  const cls = abs === 0 ? 'gap-0' : (abs <= 3 ? 'gap-s' : 'gap-l');
+  const sign = days > 0 ? '+' : '';
+  return `<span class="gapv ${cls}">${sign}${days}日</span>`;
+}
+function fmtShort(d) { return d ? `${String(d.getFullYear()).slice(2)}/${d.getMonth()+1}/${d.getDate()}` : '—'; }
+
+// 受注金額の一致度：品名スコアへの加点／減点を返す
+function amountRel(kAmt, aAmt) {
+  const a = Number(kAmt) || 0, b = Number(aAmt) || 0;
+  if (!a || !b) return { boost: 0, pct: null, cls: 'gap-na', label: '—' };
+  const pct = Math.round((b - a) / a * 1000) / 10;      // アプリ側の増減率(%)
+  const ratio = Math.min(a, b) / Math.max(a, b);
+  let boost;
+  if (a === b)          boost =  0.25;                  // 完全一致
+  else if (ratio >= .99) boost =  0.18;
+  else if (ratio >= .90) boost =  0.10;
+  else if (ratio >= .70) boost =  0.03;
+  else if (ratio <  .50) boost = -0.12;                 // 桁違いは減点
+  else                   boost =  0;
+  const cls = (a === b) ? 'gap-0' : (Math.abs(pct) <= 10 ? 'gap-s' : 'gap-l');
+  const label = (a === b) ? '一致' : (pct > 0 ? '+' : '') + pct + '%';
+  return { boost, pct, cls, label };
+}
+
+// 受注金額の一致段階（小さいほど優先）
+//  0=完全一致 / 1=±1%以内 / 2=±10%以内 / 3=±30%以内 / 4=金額不明 / 5=大きく相違
+function amountTier(kAmt, aAmt) {
+  const a = Number(kAmt) || 0, b = Number(aAmt) || 0;
+  if (!a || !b) return 4;
+  if (a === b)   return 0;
+  const r = Math.min(a, b) / Math.max(a, b);
+  if (r >= 0.99) return 1;
+  if (r >= 0.90) return 2;
+  if (r >= 0.70) return 3;
+  return 5;
+}
+// 段階ごとの照合度：金額が合うほど下限が上がる
+function tierScore(tier, name) {
+  switch (tier) {
+    case 0: return 0.55 + 0.45 * name;
+    case 1: return 0.45 + 0.55 * name;
+    case 2: return 0.30 + 0.70 * name;
+    case 3: return 0.10 + 0.90 * name;
+    case 4: return name;
+    default: return Math.max(0, name - 0.12);
+  }
+}
+
+// 照合実行：❶受注金額の一致を最優先 ❷同条件では受注品名の類似度で決定
+//           さらに 1案件＝1行 になるよう重複割当を排除（貪欲法）
+function buildMatches() {
+  const cands = projects.map(p => ({ p, c: calcProject(p) }));
+
+  // 全組み合わせを評価
+  const pairs = [];
+  KOTEI_DATA.forEach((k, ki) => {
+    cands.forEach((x, xi) => {
+      const ns = simScore(k.nm, x.p.name);
+      if (ns < 0.12) return;                            // 品名が全く違うものは金額が合っても除外
+      const tier = amountTier(k.am, x.p.amount);
+      pairs.push({ ki, xi, ns, tier, score: Math.max(0, Math.min(1, tierScore(tier, ns))) });
+    });
+  });
+  // 確度の高い組み合わせから順に確定させ、同じ案件の二重割当を防ぐ
+  pairs.sort((a, b) => b.score - a.score || a.tier - b.tier || b.ns - a.ns);
+  const usedK = new Set(), usedX = new Set(), assign = {};
+  pairs.forEach(pr => {
+    if (usedK.has(pr.ki) || usedX.has(pr.xi)) return;
+    usedK.add(pr.ki); usedX.add(pr.xi);
+    assign[pr.ki] = pr;
+  });
+
+  return KOTEI_DATA.map((k, ki) => {
+    const pr = assign[ki] || null;
+    const best = pr ? cands[pr.xi] : null;
+    const bestTier = pr ? pr.tier : 99;
+    const bestName = pr ? pr.ns : 0;
+    const bestScore = pr ? pr.score : 0;
+    const bestAmt = amountRel(k.am, best ? best.p.amount : 0);
+
+    const kNk = dOnly(k.nk), kKs = dOnly(k.ks), kKe = dOnly(k.ke), kSe = dOnly(k.se);
+    let aNk = null, aKs = null, aKe = null, aSe = null;
+    if (best) {
+      aNk = dOnly(best.p.actualDelivery || best.p.plannedDelivery) || best.c.deliveryDate;
+      aKs = dOnly(best.p.phaseAssemblyStart);
+      aKe = dOnly(best.p.phaseProcessEnd)  || best.c.processEnd;
+      aSe = dOnly(best.p.phaseDesignEnd)   || best.c.designEnd;
+    }
+    return {
+      k, best, score: bestScore, nameScore: bestName, amt: bestAmt, tier: bestTier,
+      aAmt: best ? (Number(best.p.amount) || 0) : 0,
+      kNk, kKs, kKe, kSe, aNk, aKs, aKe, aSe,
+      gNk: diffDays(aNk, kNk), gKs: diffDays(aKs, kKs),
+      gKe: diffDays(aKe, kKe), gSe: diffDays(aSe, kSe),
+    };
+  });
+}
+
+let _matchCache = null;
+
+function toggleMatch() {
+  const el = document.getElementById('matchSection');
+  const open = el.style.display === 'none';
+  el.style.display = open ? 'block' : 'none';
+  if (open) { _matchCache = buildMatches(); renderMatch(); el.scrollIntoView({ behavior:'smooth', block:'start' }); }
+}
+
+function renderMatch() {
+  if (!_matchCache) _matchCache = buildMatches();
+  const th   = parseFloat(document.getElementById('mtThreshold').value);
+  const only = document.getElementById('mtOnlyDiff').checked;
+  const onlyM= document.getElementById('mtOnlyMatched').checked;
+  const q    = normName(document.getElementById('mtSearch').value);
+
+  let list = _matchCache.map(m => ({ ...m, matched: m.score >= th }));
+  if (onlyM) list = list.filter(m => m.matched);
+  if (only)  list = list.filter(m => [m.gNk, m.gKs, m.gKe, m.gSe].some(g => g !== null && g !== 0));
+  if (q)     list = list.filter(m => normName(m.k.nm).includes(q) || (m.best && normName(m.best.p.name).includes(q)));
+  list.sort((a, b) => (a.k.nk || '9999').localeCompare(b.k.nk || '9999'));
+
+  // サマリー
+  const all = _matchCache.map(m => ({ ...m, matched: m.score >= th }));
+  const nMatched = all.filter(m => m.matched).length;
+  const gaps = all.filter(m => m.matched).flatMap(m => [m.gNk, m.gKs, m.gKe, m.gSe]).filter(g => g !== null);
+  const nZero = gaps.filter(g => g === 0).length;
+  const nBig  = gaps.filter(g => Math.abs(g) > 3).length;
+  const nAmtOk = all.filter(m => m.matched && m.k.am && m.aAmt && m.k.am === m.aAmt).length;
+  document.getElementById('matchSummary').innerHTML = `
+    <div class="ms-card"><div class="l">工程管理表 未完了</div><div class="v">${KOTEI_DATA.length.toLocaleString('ja-JP')}</div></div>
+    <div class="ms-card ok"><div class="l">照合できた案件</div><div class="v">${nMatched.toLocaleString('ja-JP')}</div></div>
+    <div class="ms-card bad"><div class="l">未照合</div><div class="v">${(KOTEI_DATA.length - nMatched).toLocaleString('ja-JP')}</div></div>
+    <div class="ms-card ok"><div class="l">受注金額も一致</div><div class="v">${nAmtOk.toLocaleString('ja-JP')}</div></div>
+    <div class="ms-card ok"><div class="l">一致した工程日</div><div class="v">${nZero.toLocaleString('ja-JP')}</div></div>
+    <div class="ms-card warn"><div class="l">4日以上の乖離</div><div class="v">${nBig.toLocaleString('ja-JP')}</div></div>`;
+
+  document.getElementById('mtCount').textContent = `${list.length.toLocaleString('ja-JP')} 件表示`;
+
+  if (!list.length) {
+    document.getElementById('matchContent').innerHTML =
+      '<div class="empty-state"><div class="icon">🔍</div>条件に一致する案件がありません</div>';
+    return;
+  }
+
+  const rows = list.map(m => {
+    const simCls = m.score >= 0.7 ? 'sim-hi' : (m.score >= 0.45 ? 'sim-mid' : 'sim-lo');
+    const appCell = m.matched
+      ? `<div class="mt-nm" style="cursor:pointer;color:#2c6fad" onclick="openEditModal('${m.best.p.id}')">${escHtml(m.best.p.name)} ✏️</div>`
+      : '<div style="color:#c0392b;font-size:10px;font-weight:700">未照合</div>';
+    const pair = (kd, ad, gap) =>
+      `<td class="mt-c"><div class="mt-dates">表 ${fmtShort(kd)}<br>App ${fmtShort(ad)}</div>${gapChip(gap)}</td>`;
+    return `<tr class="${m.matched ? '' : 'mt-nomatch'}">
+      <td class="mt-no">${escHtml(m.k.no)}</td>
+      <td class="mt-src">${escHtml(m.k.nm)}<div style="font-size:9px;color:#999">${escHtml(m.k.tk)}</div></td>
+      <td>${appCell}</td>
+      <td class="mt-sim ${simCls}">${Math.round(m.score * 100)}%
+        <div style="font-size:9px;color:#999;font-weight:500">名${Math.round(m.nameScore * 100)}%</div></td>
+      <td class="mt-am">
+        <div class="mt-dates" style="text-align:right">表 ${m.k.am ? '¥' + m.k.am.toLocaleString('ja-JP') : '—'}<br>
+          App ${m.matched && m.aAmt ? '¥' + m.aAmt.toLocaleString('ja-JP') : '—'}</div>
+        ${m.matched ? `<span class="gapv ${m.amt.cls}">${m.amt.label}</span>` : '<span class="gapv gap-na">—</span>'}
+      </td>
+      ${pair(m.kSe, m.aSe, m.gSe)}
+      ${pair(m.kKe, m.aKe, m.gKe)}
+      ${pair(m.kKs, m.aKs, m.gKs)}
+      ${pair(m.kNk, m.aNk, m.gNk)}
+    </tr>`;
+  }).join('');
+
+  document.getElementById('matchContent').innerHTML = `<table class="match-table">
+    <thead><tr>
+      <th>受注No</th><th>工程管理表の受注品名</th><th>アプリ内の受注品名</th><th>照合度</th><th>受注金額</th>
+      <th>設計完了</th><th>加工完了</th><th>組立開始</th><th>納品日</th>
+    </tr></thead><tbody>${rows}</tbody></table>
+    <div style="font-size:10px;color:#888;margin-top:8px">
+      ※ 照合度 = 受注品名の類似度（名）＋ 受注金額の一致度による補正　※ 乖離日数 = アプリの日付 − 工程管理表の日付（＋は遅い／−は早い）　※ 緑=一致、黄=3日以内(金額は±10%以内)、赤=それ以上
+    </div>`;
+}
+
+function printMatchTable() {
+  const el = document.getElementById('matchSection');
+  document.body.classList.add('printing-match');
+  window.print();
+  setTimeout(() => document.body.classList.remove('printing-match'), 300);
 }
 
 // ===========================
