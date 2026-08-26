@@ -444,6 +444,10 @@
     padding:8px 10px;background:#f8fafc;border:1px solid #e5eaf0;border-radius:6px;margin-bottom:10px; }
   .mt-dates { font-size:10px;color:#666;line-height:1.5;white-space:nowrap; }
   .mt-nomatch td { background:#fffbf5; }
+  .match-table .mt-chk { width:30px;text-align:center;padding:4px 2px; }
+  .match-table .mt-chk input { cursor:pointer;margin:0;width:15px;height:15px; }
+  .match-table tr.mt-noprint td { opacity:0.42; }
+  .match-table tr.mt-noprint .mt-chk { opacity:1; }
   @media (max-width:640px) {
     .match-table { font-size:10px; }
     .match-table th, .match-table td { padding:4px 3px; }
@@ -506,7 +510,12 @@
     body.printing-match .match-bar,
     body.printing-match .flag-legend,
     body.printing-match .section-header button,
-    body.printing-match #koteiPdfInput { display:none !important; }
+    body.printing-match #mtPrintCount,
+    body.printing-match #koteiPdfInput,
+    body.printing-match .mt-chk { display:none !important; }
+    /* チェックを外した行は印刷しない */
+    body.printing-match .match-table tr.mt-noprint { display:none !important; }
+    body.printing-match .match-table tr.mt-noprint td { opacity:1; }
     body.printing-match .match-table { font-size:8px; }
     body.printing-match .match-table tr { page-break-inside:avoid; }
     body.printing-match .match-table thead { display:table-header-group; }
@@ -636,6 +645,7 @@
     <div class="section-header">
       <h2>🔍 工程管理表との照合</h2>
       <div style="display:flex;gap:8px;align-items:center">
+        <span id="mtPrintCount" style="font-size:11px;color:#888;white-space:nowrap"></span>
         <input type="file" id="koteiPdfInput" accept="application/pdf,.pdf" style="display:none" onchange="onKoteiPdfPicked(event)">
         <button class="btn btn-sm" onclick="document.getElementById('koteiPdfInput').click()" style="background:#eaf6ec;color:#1e7e34;border:1px solid #bfe3c9">📄 PDF取込</button>
         <button class="btn btn-sm" onclick="printMatchTable()" style="background:#e8f4fd;color:#2c6fad;border:1px solid #c5d9ed">🖨 印刷</button>
@@ -1481,6 +1491,35 @@ function buildMatches() {
 
 let _matchCache = null;
 let koteiMeta = null;   // { fileName, importedAt, count, by }
+let _mtNoPrint = new Set();   // 印刷から除外する受注No
+
+function toggleRowPrint(no, on) {
+  if (on) _mtNoPrint.delete(no); else _mtNoPrint.add(no);
+  const tr = document.querySelector(`#matchContent tr[data-no="${CSS.escape(no)}"]`);
+  if (tr) tr.classList.toggle('mt-noprint', !on);
+  updatePrintCount();
+}
+
+function toggleAllRowPrint(on) {
+  document.querySelectorAll('#matchContent tbody tr[data-no]').forEach(tr => {
+    const no = tr.dataset.no;
+    if (on) _mtNoPrint.delete(no); else _mtNoPrint.add(no);
+    tr.classList.toggle('mt-noprint', !on);
+    const cb = tr.querySelector('input[type=checkbox]');
+    if (cb) cb.checked = on;
+  });
+  updatePrintCount();
+}
+
+function updatePrintCount() {
+  const el = document.getElementById('mtPrintCount');
+  if (!el) return;
+  const rows = document.querySelectorAll('#matchContent tbody tr[data-no]');
+  const on = [...rows].filter(tr => !_mtNoPrint.has(tr.dataset.no)).length;
+  el.textContent = `印刷対象 ${on.toLocaleString('ja-JP')} / ${rows.length.toLocaleString('ja-JP')} 件`;
+  const head = document.getElementById('mtChkAll');
+  if (head) { head.checked = on === rows.length; head.indeterminate = on > 0 && on < rows.length; }
+}
 
 // PDFを選択 → 解析 → 確認 → 反映
 async function onKoteiPdfPicked(ev) {
@@ -1632,7 +1671,9 @@ function renderMatch() {
     const noChip = !m.matched ? '<span class="gapv gap-na">—</span>'
       : (!appNo ? '<span class="gapv gap-na">未入力</span>'
       : (noSame ? '<span class="gapv gap-0">一致</span>' : '<span class="gapv gap-l">不一致</span>'));
-    return `<tr class="${m.matched ? '' : 'mt-nomatch'}">
+    const printOn = !_mtNoPrint.has(m.k.no);
+    return `<tr data-no="${escAttr(m.k.no)}" class="${m.matched ? '' : 'mt-nomatch'}${printOn ? '' : ' mt-noprint'}">
+      <td class="mt-chk"><input type="checkbox" ${printOn ? 'checked' : ''} onchange="toggleRowPrint(this.closest('tr').dataset.no,this.checked)"></td>
       <td class="mt-c">
         <div class="mt-dates" style="text-align:left;font-family:ui-monospace,monospace">表 ${escHtml(m.k.no)}<br>App ${escHtml(appNo || '—')}</div>
         ${noChip}
@@ -1655,12 +1696,14 @@ function renderMatch() {
 
   document.getElementById('matchContent').innerHTML = `<table class="match-table">
     <thead><tr>
+      <th class="mt-chk"><input type="checkbox" id="mtChkAll" checked onchange="toggleAllRowPrint(this.checked)" title="すべて選択／解除"></th>
       <th>受注No</th><th>工程管理表の受注品名</th><th>アプリ内の受注品名</th><th>照合度</th><th>受注金額</th>
       <th>設計完了</th><th>加工完了</th><th>組立開始</th><th>納品日</th>
     </tr></thead><tbody>${rows}</tbody></table>
     <div style="font-size:10px;color:#888;margin-top:8px">
-      ※ 照合度 = 受注品名の類似度（名）＋ 受注金額の一致度による補正　※ 乖離日数 = アプリの日付 − 工程管理表の日付（＋は遅い／−は早い）　※ 緑=一致、黄=3日以内(金額は±10%以内)、赤=それ以上
+      ※ 左端のチェックを外した行は印刷されません　※ 照合度 = 受注品名の類似度（名）＋ 受注金額の一致度による補正　※ 乖離日数 = アプリの日付 − 工程管理表の日付（＋は遅い／−は早い）　※ 緑=一致、黄=3日以内(金額は±10%以内)、赤=それ以上
     </div>`;
+  updatePrintCount();
 }
 
 function printMatchTable() {
