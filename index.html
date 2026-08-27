@@ -1474,7 +1474,8 @@ function buildMatches() {
     const kNk = dOnly(k.nk), kKs = dOnly(k.ks), kKe = dOnly(k.ke), kSe = dOnly(k.se);
     let aNk = null, aKs = null, aKe = null, aSe = null;
     if (best) {
-      aNk = dOnly(best.p.actualDelivery || best.p.plannedDelivery) || best.c.deliveryDate;
+      // 納品日は「工程日程の組立終了日」を優先（未入力なら【要求】納品日）
+      aNk = dOnly(best.p.phaseAssemblyEnd) || dOnly(best.p.actualDelivery || best.p.plannedDelivery) || best.c.deliveryDate;
       aKs = dOnly(best.p.phaseAssemblyStart);
       aKe = dOnly(best.p.phaseProcessEnd)  || best.c.processEnd;
       aSe = dOnly(best.p.phaseDesignEnd)   || best.c.designEnd;
@@ -1701,7 +1702,7 @@ function renderMatch() {
       <th>設計完了</th><th>加工完了</th><th>組立開始</th><th>納品日</th>
     </tr></thead><tbody>${rows}</tbody></table>
     <div style="font-size:10px;color:#888;margin-top:8px">
-      ※ 左端のチェックを外した行は印刷されません　※ 照合度 = 受注品名の類似度（名）＋ 受注金額の一致度による補正　※ 乖離日数 = アプリの日付 − 工程管理表の日付（＋は遅い／−は早い）　※ 緑=一致、黄=3日以内(金額は±10%以内)、赤=それ以上
+      ※ App側の納品日は「工程日程の組立終了日」（未入力の場合のみ【要求】納品日）　※ 左端のチェックを外した行は印刷されません　※ 照合度 = 受注品名の類似度（名）＋ 受注金額の一致度による補正　※ 乖離日数 = アプリの日付 − 工程管理表の日付（＋は遅い／−は早い）　※ 緑=一致、黄=3日以内(金額は±10%以内)、赤=それ以上
     </div>`;
   updatePrintCount();
 }
