@@ -404,6 +404,7 @@
   .cal-fl-chip { font-size:11px;font-weight:700;padding:2px 8px;border-radius:3px;border-left:4px solid; }
   .cal-fl-n { font-size:10px;color:#999;flex-shrink:0; }
   .cal-fl-dot { width:12px;height:12px;border-radius:3px;flex-shrink:0;border-left:3px solid; }
+  .cal-fl-d { font-size:10px;color:#2c6fad;font-weight:700;min-width:34px;flex-shrink:0;text-align:right; }
   .cal-fl-empty { opacity:0.45; }
   /* ===== 照合タブ ===== */
   .match-bar { display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:8px 4px 10px;border-bottom:1px solid #eef1f5;margin-bottom:10px; }
@@ -776,6 +777,19 @@
         <button onclick="setAllCalCmt(false)" style="font-size:10px;padding:2px 8px;border:1px solid #ddd;background:#f5f5f5;color:#666;border-radius:4px;cursor:pointer">全解除</button>
       </div>
       <div id="calFilterComments" style="max-height:200px;overflow-y:auto;border:1px solid #e5e9ef;border-radius:6px;padding:6px 8px"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin:8px 0 5px">
+      <button onclick="toggleCalPrjAccordion()" style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#555;background:none;border:none;padding:2px 0;cursor:pointer">
+        <span id="calPrjArrow" style="font-size:9px;color:#888">▶</span>案件で絞り込み
+      </button>
+      <span id="calPrjSummary" style="font-size:10px;color:#999"></span>
+    </div>
+    <div id="calPrjBody" style="display:none">
+      <div style="display:flex;gap:6px;margin-bottom:5px">
+        <button onclick="setAllCalPrj(true)" style="font-size:10px;padding:2px 8px;border:1px solid #c5d9ed;background:#e8f4fd;color:#2c6fad;border-radius:4px;cursor:pointer">全選択</button>
+        <button onclick="setAllCalPrj(false)" style="font-size:10px;padding:2px 8px;border:1px solid #ddd;background:#f5f5f5;color:#666;border-radius:4px;cursor:pointer">全解除</button>
+      </div>
+      <div id="calFilterProjects" style="max-height:220px;overflow-y:auto;border:1px solid #e5e9ef;border-radius:6px;padding:6px 8px"></div>
     </div>
   </div>
   <div id="calOverlayBody" style="padding:10px"></div>
@@ -2289,6 +2303,7 @@ function closeCalendarOverlay() {
 let _calSourceMap = {}, _calSourceTitle = '';
 let _calCatFilter = new Set(CAL_CATS);
 let _calCmtFilter = new Set();
+let _calPrjFilter = new Set();
 
 function showCalendarOverlay(title, stickyMap) {
   // カレンダーは当月から表示するため、過去分は対象外にして件数を実表示と一致させる
@@ -2303,12 +2318,15 @@ function showCalendarOverlay(title, stickyMap) {
   _calSourceMap = inRange;
   _calCatFilter = new Set(CAL_CATS);
   _calCmtFilter = new Set(Object.values(inRange).flat().map(i => normComment(i.comment)));
+  _calPrjFilter = new Set(Object.values(inRange).flat().map(i => i.pid));
   renderCalFilterPanel();
   applyCalFilter();
   document.getElementById('calOverlayTitle').textContent = '城東機械　' + title;
   document.getElementById('calFilterPanel').style.display = 'none';
   document.getElementById('calCmtBody').style.display = 'none';
   document.getElementById('calCmtArrow').textContent = '▶';
+  document.getElementById('calPrjBody').style.display = 'none';
+  document.getElementById('calPrjArrow').textContent = '▶';
   const ov = document.getElementById('calendarOverlay');
   ov.style.display = 'block';
   ov.scrollTop = 0;
@@ -2348,6 +2366,55 @@ function renderCalFilterPanel() {
       <span class="cal-fl-dot ${CAL_CAT_CLASS[v.cat]}"></span>
       <span style="flex:1;word-break:break-word">${escHtml(text)}</span><span class="cal-fl-n">${v.n}</span></label>`)
     .join('');
+
+  // 案件（重複排除・納品日順＝照合画面と同じ並び）
+  const seenP = new Map();
+  all.forEach(i => {
+    if (!seenP.has(i.pid)) {
+      const p = projects.find(x => x.id === i.pid);
+      // 納品日は照合画面と同じ基準（工程日程の組立終了日 → 【要求】納品日）
+      const dv = p ? (p.phaseAssemblyEnd || p.actualDelivery || p.plannedDelivery || '') : '';
+      seenP.set(i.pid, { name: i.projectName, n: 0, d: dv || '9999-99-99' });
+    }
+    seenP.get(i.pid).n++;
+  });
+  const plist = [...seenP].sort((a, b) =>
+    a[1].d.localeCompare(b[1].d) || a[1].name.localeCompare(b[1].name, 'ja'));
+  const shortD = s => {
+    const d = parseDate(s);
+    return d ? `${d.getMonth()+1}/${d.getDate()}` : '';
+  };
+  document.getElementById('calFilterProjects').innerHTML = plist
+    .map(([pid, v]) => `<label class="cal-fl cal-fl-row"><input type="checkbox" checked onchange="toggleCalPrj('${pid}',this.checked)">
+      <span class="cal-fl-d">${shortD(v.d)}</span>
+      <span style="flex:1;word-break:break-word">${escHtml(v.name)}</span><span class="cal-fl-n">${v.n}</span></label>`)
+    .join('');
+}
+
+function toggleCalPrjAccordion() {
+  const body = document.getElementById('calPrjBody');
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  document.getElementById('calPrjArrow').textContent = open ? '▼' : '▶';
+}
+
+function toggleCalPrj(pid, on) {
+  if (on) _calPrjFilter.add(pid); else _calPrjFilter.delete(pid);
+  applyCalFilter();
+}
+
+function setAllCalPrj(on) {
+  _calPrjFilter = on ? new Set(Object.values(_calSourceMap).flat().map(i => i.pid)) : new Set();
+  document.querySelectorAll('#calFilterProjects input[type=checkbox]').forEach(cb => { cb.checked = on; });
+  applyCalFilter();
+}
+
+function updateCalPrjSummary() {
+  const el = document.getElementById('calPrjSummary');
+  if (!el) return;
+  const total = document.querySelectorAll('#calFilterProjects input[type=checkbox]').length;
+  const on = _calPrjFilter.size;
+  el.textContent = (on === total) ? `（全${total}件）` : `（${on}/${total}件を選択中）`;
 }
 
 function escAttr(s) {
@@ -2391,7 +2458,9 @@ function applyCalFilter() {
   Object.keys(_calSourceMap).forEach(k => {
     const items = _calSourceMap[k].filter(it => {
       total++;
-      return _calCatFilter.has(commentCategory(it.comment)) && _calCmtFilter.has(normComment(it.comment));
+      return _calCatFilter.has(commentCategory(it.comment))
+          && _calCmtFilter.has(normComment(it.comment))
+          && _calPrjFilter.has(it.pid);
     });
     if (items.length) { filtered[k] = items; shown += items.length; }
   });
@@ -2399,6 +2468,7 @@ function applyCalFilter() {
   const cntEl = document.getElementById('calFilterCount');
   if (cntEl) cntEl.textContent = `表示 ${shown.toLocaleString('ja-JP')} / ${total.toLocaleString('ja-JP')} 件`;
   updateCalCmtSummary();
+  updateCalPrjSummary();
 
   const body = document.getElementById('calOverlayBody');
   const range = calcCommentRange(filtered);
