@@ -1588,9 +1588,27 @@ async function onKoteiPdfPicked(ev) {
 // 取込データを破棄して、埋め込みの初期データに戻す
 function resetKoteiData() {
   if (!confirm('取り込んだ工程管理表のデータを破棄し、初期データ（123件）に戻します。\nよろしいですか？')) return;
-  try { localStorage.removeItem('wf_kotei'); } catch {}
+
+  // 取込データに対して付けたマーキングは受注No.がずれているため、任意で削除
+  const nFlags = Object.keys(matchFlags).length;
+  const alsoFlags = nFlags > 0 &&
+    confirm(`日付のマーキング（🔴🟡🟢）が ${nFlags} 件あります。\n` +
+            `取り込んだデータに対して付けたものは受注No.がずれている可能性があります。\n\n` +
+            `OK：マーキングも削除する\nキャンセル：マーキングは残す`);
+
+  try {
+    localStorage.removeItem('wf_kotei');
+    if (alsoFlags) localStorage.removeItem('wf_matchFlags');
+  } catch {}
+
   const done = () => location.reload();
-  if (db) db.ref('koteiData').remove().then(done).catch(done); else done();
+  const tasks = [];
+  if (db) {
+    tasks.push(db.ref('koteiData').remove().catch(() => {}));
+    if (alsoFlags) tasks.push(db.ref('matchFlags').remove().catch(() => {}));
+  }
+  Promise.all(tasks).then(done).catch(done);
+  if (!db) done();
 }
 
 function saveKoteiData() {
@@ -1612,6 +1630,7 @@ function loadKoteiData() {
         KOTEI_DATA = v.rows; koteiMeta = v.meta || null;
         try { localStorage.setItem('wf_kotei', JSON.stringify(v)); } catch {}
         _matchCache = null;
+        _mtNoPrint = new Set();   // データが変われば印刷選択もリセット
         const sec = document.getElementById('matchSection');
         if (sec && sec.style.display !== 'none') renderMatch();
       }
