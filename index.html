@@ -649,6 +649,7 @@
         <span id="mtPrintCount" style="font-size:11px;color:#888;white-space:nowrap"></span>
         <input type="file" id="koteiPdfInput" accept="application/pdf,.pdf" style="display:none" onchange="onKoteiPdfPicked(event)">
         <button class="btn btn-sm" onclick="document.getElementById('koteiPdfInput').click()" style="background:#eaf6ec;color:#1e7e34;border:1px solid #bfe3c9">📄 PDF取込</button>
+        <button class="btn btn-sm" onclick="resetKoteiData()" style="background:#fdeeee;color:#c0392b;border:1px solid #f2c6c1" title="取込前の初期データに戻します">↩ 初期化</button>
         <button class="btn btn-sm" onclick="printMatchTable()" style="background:#e8f4fd;color:#2c6fad;border:1px solid #c5d9ed">🖨 印刷</button>
       </div>
     </div>
@@ -1268,31 +1269,33 @@ async function parseKoteiPdf(file, onProgress) {
     });
     lines.sort((a, b) => a.y - b.y);
 
-    // 売上区分を持つ行を先頭とし、続く行（区分なし）を折返しとして連結
-    let cur = null;
-    lines.forEach(ln => {
-      const u = (ln.cells.uriage || '').replace(/\s/g, '');
-      const isHead = ['未完了','完了','途中完了','一部完了'].includes(u);
-      if (isHead) {
-        cur = { uriage: u, y: ln.y, cells: {} };
-        rows.push(cur);
+    // ページ上部の見出し行を除外（データ行に混ざるのを防ぐ）
+    let head = -1;
+    lines.forEach((ln, i) => {
+      if (/受注品名|合計金額|現在の状況|進捗/.test(Object.values(ln.cells).join(''))) head = i;
+    });
+
+    // 1行分は複数の表示行にまたがる。受注Noの枝番行（-XXXX）がその行の最終行。
+    let buf = {};
+    lines.slice(head + 1).forEach(ln => {
+      Object.keys(ln.cells).forEach(k => { buf[k] = (buf[k] || '') + ln.cells[k]; });
+      if (/^[-‐−―ー]/.test((ln.cells.no || '').replace(/\s/g, ''))) {
+        rows.push({ cells: buf });
+        buf = {};
       }
-      if (!cur || ln.y - cur.y > 26) return;       // 行の高さを超えたら別行
-      Object.keys(ln.cells).forEach(k => {
-        if (k === 'uriage') return;
-        cur.cells[k] = (cur.cells[k] || '') + ln.cells[k];
-      });
     });
   }
 
   // 未完了のみを抽出して整形
   const out = [];
   rows.forEach(r => {
-    if (r.uriage !== '未完了') return;
     const c = r.cells;
+    // 「途中完了」など幅の広い区分は受注No列にはみ出すため、両方を見て判定
+    const uri = ((c.uriage || '') + (c.no || '')).replace(/\s/g, '');
+    if (!/未完了/.test(uri)) return;
     const nou = pdfParseNouki(c.nk);
     out.push({
-      no: (c.no || '').replace(/\s/g, ''),
+      no: (c.no || '').replace(/\s/g, '').replace(/(未完了|一部完了|途中完了|完了)/g, ''),
       nm: (c.nm || '').replace(/\s+/g, ' ').trim(),
       am: parseInt(String(c.am || '').replace(/[^\d]/g, ''), 10) || 0,
       nk: pdfIso(nou),
@@ -1580,6 +1583,14 @@ async function onKoteiPdfPicked(ev) {
     info.innerHTML = prev;
     alert('PDFの解析に失敗しました。\n' + (e && e.message ? e.message : ''));
   }
+}
+
+// 取込データを破棄して、埋め込みの初期データに戻す
+function resetKoteiData() {
+  if (!confirm('取り込んだ工程管理表のデータを破棄し、初期データ（123件）に戻します。\nよろしいですか？')) return;
+  try { localStorage.removeItem('wf_kotei'); } catch {}
+  const done = () => location.reload();
+  if (db) db.ref('koteiData').remove().then(done).catch(done); else done();
 }
 
 function saveKoteiData() {
