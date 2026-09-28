@@ -78,8 +78,9 @@
   .gantt-wrapper { overflow-x: auto; }
   .gantt-table { border-collapse: collapse; min-width: 100%; }
   .gantt-table th, .gantt-table td { border: 1px solid var(--c-border); }
-  .gantt-table .col-name { width: 200px; min-width: 200px; position: sticky; left: 0; background: var(--c-card); z-index: 2; padding: 6px 10px; font-weight: 600; font-size: 12px; }
-  .gantt-table .col-progress { width: 90px; min-width: 90px; position: sticky; left: 200px; background: var(--c-card); z-index: 2; padding: 6px 8px; text-align: center; }
+  /* z-index は .cell-tag(3) より大きくして、メモが受注品名・進捗に被らないようにする */
+  .gantt-table .col-name { width: 200px; min-width: 200px; position: sticky; left: 0; background: var(--c-card); z-index: 4; padding: 6px 10px; font-weight: 600; font-size: 12px; }
+  .gantt-table .col-progress { width: 90px; min-width: 90px; position: sticky; left: 200px; background: var(--c-card); z-index: 4; padding: 6px 8px; text-align: center; }
   .gantt-header-month { background: #1a3a5c; color: #fff; text-align: center; padding: 4px 0; font-size: 11px; font-weight: 700; }
   .gantt-header-day { background: #f5f7fa; text-align: center; padding: 3px 0; font-size: 10px; width: 20px; min-width: 20px; }
   /* フローティングヘッダー */
@@ -445,6 +446,28 @@
     padding:8px 10px;background:#f8fafc;border:1px solid #e5eaf0;border-radius:6px;margin-bottom:10px; }
   .mt-dates { font-size:10px;color:#666;line-height:1.5;white-space:nowrap; }
   .mt-nomatch td { background:#fffbf5; }
+  /* ===== 取込データ ビューア ===== */
+  .kv-table { width:100%;border-collapse:collapse;font-size:11px;background:#fff; }
+  .kv-table th { background:#6a4bb8;color:#fff;padding:6px 4px;border:1px solid #5a3fa0;font-weight:700;
+    white-space:nowrap;font-size:10px;position:sticky;top:0;z-index:2; }
+  .kv-table td { padding:5px 4px;border:1px solid #e3e8ee;vertical-align:top; }
+  .kv-table tr:nth-child(even) td { background:#f8f9fc; }
+  .kv-table tr:hover td { background:#f3eefd; }
+  /* 列ごとのフィルター行 */
+  .kv-table .kv-frow th { background:#f3eefd;padding:3px;position:sticky;top:26px;z-index:2;border-top:none; }
+  .kv-table .kv-f { width:100%;box-sizing:border-box;font-size:10px;padding:3px 4px;
+    border:1px solid #cfc2ea;border-radius:4px;background:#fff;color:#333;font-family:inherit; }
+  .kv-table .kv-f:focus { outline:none;border-color:#6a4bb8;box-shadow:0 0 0 2px rgba(106,75,184,.15); }
+  .kv-c  { text-align:center;white-space:nowrap; }
+  .kv-am { text-align:right;white-space:nowrap;font-weight:600; }
+  .kv-no { font-family:ui-monospace,monospace;font-size:9px;color:#555;white-space:nowrap; }
+  .kv-nm { word-break:break-word;min-width:160px; }
+  .kv-tk { word-break:break-word;color:#666;font-size:10px; }
+  @media (max-width:640px) {
+    .kv-table { font-size:10px; }
+    .kv-table th, .kv-table td { padding:4px 3px; }
+    .kv-nm { min-width:110px; }
+  }
   .match-table .mt-chk { width:30px;text-align:center;padding:4px 2px; }
   .match-table .mt-chk input { cursor:pointer;margin:0;width:15px;height:15px; }
   .match-table tr.mt-noprint td { opacity:0.42; }
@@ -529,10 +552,21 @@
   @page { size: A4 landscape; margin: 0; }
   @media print {
     html, body { margin:0 !important; padding:0 !important; background:#fff !important; }
-    /* カレンダー印刷（照合モードのときは適用しない） */
-    body:not(.printing-match) > *:not(#calendarOverlay) { display: none !important; }
-    body:not(.printing-match) #calendarOverlay { position:static !important; overflow:visible !important; background:#fff !important; }
-    body:not(.printing-match) #calendarOverlay > div:first-child { display:none !important; }
+    /* 取込データ印刷 */
+    body.printing-kotei > *:not(#koteiViewer) { display:none !important; }
+    body.printing-kotei #koteiViewer { position:static !important;overflow:visible !important;background:#fff !important;padding:6mm; }
+    body.printing-kotei #kvHeader { display:none !important; }
+    body.printing-kotei .kv-table { font-size:8px; }
+    body.printing-kotei .kv-table tr { page-break-inside:avoid; }
+    body.printing-kotei .kv-table thead { display:table-header-group; }
+    body.printing-kotei .kv-table th { position:static !important; }
+    body.printing-kotei .kv-frow { display:none !important; }
+    body.printing-kotei .kv-table th,
+    body.printing-kotei .kv-table td { -webkit-print-color-adjust:exact;print-color-adjust:exact; }
+    /* カレンダー印刷（照合・取込データのときは適用しない） */
+    body:not(.printing-match):not(.printing-kotei) > *:not(#calendarOverlay) { display: none !important; }
+    body:not(.printing-match):not(.printing-kotei) #calendarOverlay { position:static !important; overflow:visible !important; background:#fff !important; }
+    body:not(.printing-match):not(.printing-kotei) #calendarOverlay > div:first-child { display:none !important; }
     #calFilterPanel { display:none !important; }
     /* @page の余白を0にした分、内側で余白を確保 */
     #calOverlayBody { padding: 8mm !important; }
@@ -648,6 +682,7 @@
       <div style="display:flex;gap:8px;align-items:center">
         <span id="mtPrintCount" style="font-size:11px;color:#888;white-space:nowrap"></span>
         <input type="file" id="koteiPdfInput" accept="application/pdf,.pdf" style="display:none" onchange="onKoteiPdfPicked(event)">
+        <button class="btn btn-sm" onclick="openKoteiViewer()" style="background:#f3eefd;color:#6a4bb8;border:1px solid #d8cbf2" title="PDFから読み込んだデータを一覧表示">📋 取込データ</button>
         <button class="btn btn-sm" onclick="document.getElementById('koteiPdfInput').click()" style="background:#eaf6ec;color:#1e7e34;border:1px solid #bfe3c9">📄 PDF取込</button>
         <button class="btn btn-sm" onclick="resetKoteiData()" style="background:#fdeeee;color:#c0392b;border:1px solid #f2c6c1" title="取込前の初期データに戻します">↩ 初期化</button>
         <button class="btn btn-sm" onclick="printMatchTable()" style="background:#e8f4fd;color:#2c6fad;border:1px solid #c5d9ed">🖨 印刷</button>
@@ -753,6 +788,21 @@
 <div class="toast" id="toast"></div>
 
 <!-- Gantt Memo Tooltip -->
+<!-- PDF取込データ ビューア -->
+<div id="koteiViewer" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:520;background:#f7f9fc;overflow-y:scroll;-webkit-overflow-scrolling:touch">
+  <div id="kvHeader" style="position:sticky;top:0;z-index:10;background:#6a4bb8;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;box-shadow:0 2px 6px rgba(0,0,0,0.2);flex-wrap:wrap">
+    <div style="font-size:15px;font-weight:700">📋 工程管理表 取込データ</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button onclick="kvClearFilters()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:5px;padding:5px 12px;cursor:pointer;font-size:12px">✕ 絞込解除</button>
+      <button onclick="downloadKoteiCsv()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:5px;padding:5px 12px;cursor:pointer;font-size:12px">📥 CSV</button>
+      <button onclick="printKoteiViewer()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:5px;padding:5px 12px;cursor:pointer;font-size:12px">🖨 印刷</button>
+      <button onclick="closeKoteiViewer()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:5px;padding:5px 12px;cursor:pointer;font-size:13px">✕ 閉じる</button>
+    </div>
+  </div>
+  <div id="kvInfo" style="padding:8px 14px 0;font-size:11px;color:#777"></div>
+  <div id="kvBody" style="padding:10px 14px 24px;overflow-x:auto"></div>
+</div>
+
 <div id="calendarOverlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:500;background:#f7f9fc;overflow-y:scroll;-webkit-overflow-scrolling:touch">
   <div style="position:sticky;top:0;z-index:10;background:#2c6fad;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;box-shadow:0 2px 6px rgba(0,0,0,0.2)">
     <div id="calOverlayTitle" style="font-size:15px;font-weight:700">工程カレンダー</div>
@@ -1636,6 +1686,172 @@ function loadKoteiData() {
       }
     }, () => {});
   }
+}
+
+// ===== PDF取込データ ビューア =====
+let _kvList = null;
+
+function openKoteiViewer() {
+  _kvF = { no:'', nm:'', tk:'', am:'', nk:'', se:'', ke:'', ks:'', st:'' };
+  buildKoteiTable();
+  const el = document.getElementById('koteiViewer');
+  el.style.display = 'block';
+  el.scrollTop = 0;
+}
+function closeKoteiViewer() {
+  document.getElementById('koteiViewer').style.display = 'none';
+}
+function printKoteiViewer() {
+  document.body.classList.add('printing-kotei');
+  window.print();
+  setTimeout(() => document.body.classList.remove('printing-kotei'), 300);
+}
+
+function kvFmtDate(s) {
+  const d = parseDate(s);
+  return d ? `${String(d.getFullYear()).slice(2)}/${d.getMonth()+1}/${d.getDate()}` : '—';
+}
+
+// 受注No の末尾（得意先コード）を取り出す： J26262-INGK → INGK
+function koteiNoSuffix(no) {
+  const m = /-([A-Za-z0-9]+)\s*$/.exec(String(no || ''));
+  return m ? m[1].toUpperCase() : '';
+}
+
+// 列ごとの絞り込み条件
+let _kvF = { no:'', nm:'', tk:'', am:'', nk:'', se:'', ke:'', ks:'', st:'' };
+
+function kvSetFilter(key, val) { _kvF[key] = val; renderKoteiRows(); }
+
+function kvClearFilters() {
+  _kvF = { no:'', nm:'', tk:'', am:'', nk:'', se:'', ke:'', ks:'', st:'' };
+  buildKoteiTable();
+}
+
+// 絞り込み適用
+function kvFilterList() {
+  const inc = (v, q) => String(v || '').toLowerCase().includes(q.toLowerCase());
+  return KOTEI_DATA.filter(r => {
+    if (_kvF.no && !inc(String(r.no).replace(/\s/g, ''), _kvF.no.replace(/\s/g, ''))) return false;
+    if (_kvF.nm && !inc(r.nm, _kvF.nm)) return false;
+    if (_kvF.tk && r.tk !== _kvF.tk) return false;
+    if (_kvF.st && (r.st || '') !== _kvF.st) return false;
+    if (_kvF.am) {
+      const a = Number(r.am) || 0;
+      if (_kvF.am === '0'   && a !== 0) return false;
+      if (_kvF.am === 'lt1' && !(a > 0 && a < 1000000)) return false;
+      if (_kvF.am === '1t'  && !(a >= 1000000 && a < 10000000)) return false;
+      if (_kvF.am === 'ge1' && !(a >= 10000000)) return false;
+    }
+    for (const k of ['nk', 'se', 'ke', 'ks']) {
+      const f = _kvF[k];
+      if (!f) continue;
+      const v = r[k] || '';
+      if (f === 'has' && !v) return false;
+      if (f === 'none' && v) return false;
+      if (f.startsWith('m:') && v.slice(0, 7) !== f.slice(2)) return false;
+    }
+    return true;
+  });
+}
+
+// 表の外枠（見出し＋フィルター行）を組み立て
+function buildKoteiTable() {
+  const uniq = (arr) => [...new Set(arr.filter(Boolean))].sort();
+  const tks  = uniq(KOTEI_DATA.map(r => r.tk));
+  const sts  = uniq(KOTEI_DATA.map(r => r.st));
+  const months = k => uniq(KOTEI_DATA.map(r => (r[k] || '').slice(0, 7)));
+
+  const opt = (v, label, cur) => `<option value="${escAttr(v)}"${cur === v ? ' selected' : ''}>${escHtml(label)}</option>`;
+  const dateSel = (k, label) => `<select class="kv-f" onchange="kvSetFilter('${k}',this.value)">
+      ${opt('', 'すべて', _kvF[k])}${opt('has', '入力あり', _kvF[k])}${opt('none', '未入力', _kvF[k])}
+      ${months(k).map(m => opt('m:' + m, m.replace('-', '/'), _kvF[k])).join('')}
+    </select>`;
+
+  document.getElementById('kvBody').innerHTML = `<table class="kv-table">
+    <thead>
+      <tr>
+        <th style="width:34px">#</th><th style="width:96px">受注No</th><th>受注品名</th>
+        <th style="width:100px">得意先</th><th style="width:96px">受注金額</th>
+        <th style="width:66px">納品日</th><th style="width:66px">設計完了</th>
+        <th style="width:66px">加工完了</th><th style="width:66px">組立開始</th>
+        <th style="width:62px">状況</th>
+      </tr>
+      <tr class="kv-frow">
+        <th></th>
+        <th><input class="kv-f" type="text" placeholder="J262 / SNKK" value="${escAttr(_kvF.no)}" oninput="kvSetFilter('no',this.value)"></th>
+        <th><input class="kv-f" type="text" placeholder="品名で絞込" value="${escAttr(_kvF.nm)}" oninput="kvSetFilter('nm',this.value)"></th>
+        <th><select class="kv-f" onchange="kvSetFilter('tk',this.value)">
+          ${opt('', 'すべて', _kvF.tk)}${tks.map(t => opt(t, t, _kvF.tk)).join('')}</select></th>
+        <th><select class="kv-f" onchange="kvSetFilter('am',this.value)">
+          ${opt('', 'すべて', _kvF.am)}${opt('ge1', '1000万〜', _kvF.am)}${opt('1t', '100万〜1000万', _kvF.am)}
+          ${opt('lt1', '〜100万', _kvF.am)}${opt('0', '未入力', _kvF.am)}</select></th>
+        <th>${dateSel('nk')}</th><th>${dateSel('se')}</th><th>${dateSel('ke')}</th><th>${dateSel('ks')}</th>
+        <th><select class="kv-f" onchange="kvSetFilter('st',this.value)">
+          ${opt('', 'すべて', _kvF.st)}${sts.map(s => opt(s, s, _kvF.st)).join('')}</select></th>
+      </tr>
+    </thead>
+    <tbody id="kvRows"></tbody>
+  </table>
+  <div id="kvEmpty" style="display:none" class="empty-state"><div class="icon">📋</div>該当するデータがありません</div>
+  <div style="font-size:10px;color:#888;margin-top:8px">
+    ※ 納品日が本日より前の案件は赤字　※「—」は元表で未入力　※ 工程日は元表の月日＋曜日から年を判定
+  </div>`;
+  renderKoteiRows();
+}
+
+// 明細だけを再描画（フィルター入力のフォーカスを保つ）
+function renderKoteiRows() {
+  const list = kvFilterList();
+  _kvList = list;                       // CSVは絞り込み結果に合わせる
+  const isFiltered = Object.values(_kvF).some(Boolean);
+  const total = list.reduce((s, r) => s + (Number(r.am) || 0), 0);
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  document.getElementById('kvInfo').innerHTML =
+    (koteiMeta
+      ? `出典：<b>${escHtml(koteiMeta.fileName)}</b>　取込：${new Date(koteiMeta.importedAt).toLocaleString('ja-JP')}` +
+        (koteiMeta.by ? `（${escHtml(koteiMeta.by)}）` : '')
+      : '出典：初期データ（工程管理 打合せ 2025/3～）') +
+    `　／　売上区分＝未完了　<b>${list.length.toLocaleString('ja-JP')}件</b>` +
+    (isFiltered ? ` / 全${KOTEI_DATA.length.toLocaleString('ja-JP')}件` : '') +
+    `　／　受注金額合計 <b>¥${total.toLocaleString('ja-JP')}</b>`;
+
+  document.getElementById('kvEmpty').style.display = list.length ? 'none' : '';
+  document.getElementById('kvRows').innerHTML = list.map((r, i) => {
+    const d = parseDate(r.nk);
+    const over = d && d < today ? ' style="color:#c0392b;font-weight:700"' : '';
+    return `<tr>
+      <td class="kv-c" style="color:#999">${i + 1}</td>
+      <td class="kv-no">${escHtml(r.no || '')}</td>
+      <td class="kv-nm">${escHtml(r.nm || '')}</td>
+      <td class="kv-tk">${escHtml(r.tk || '')}</td>
+      <td class="kv-am">${r.am ? '¥' + Number(r.am).toLocaleString('ja-JP') : '—'}</td>
+      <td class="kv-c"${over}>${kvFmtDate(r.nk)}</td>
+      <td class="kv-c">${kvFmtDate(r.se)}</td>
+      <td class="kv-c">${kvFmtDate(r.ke)}</td>
+      <td class="kv-c">${kvFmtDate(r.ks)}</td>
+      <td class="kv-c">${escHtml(r.st || '')}</td>
+    </tr>`;
+  }).join('');
+}
+
+// 旧名互換
+function renderKoteiViewer() { buildKoteiTable(); }
+
+function downloadKoteiCsv() {
+  const head = ['受注No','受注品名','得意先','受注金額','納品日','設計完了','加工完了','組立開始','状況'];
+  const esc = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const lines = [head.map(esc).join(',')];
+  (_kvList && _kvList.length ? _kvList : KOTEI_DATA).forEach(r => {
+    lines.push([r.no, r.nm, r.tk, r.am || 0, r.nk, r.se, r.ke, r.ks, r.st].map(esc).join(','));
+  });
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `工程管理表_未完了_${formatDate(new Date())}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 function renderKoteiSrcInfo() {
