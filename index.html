@@ -34,6 +34,15 @@
     padding: 4px 14px; font-size: 12px;
   }
   .header-actions { display: flex; gap: 8px; }
+  /* ハンバーガー（スマホのみ表示） */
+  .nav-toggle { display: none; background: rgba(255,255,255,0.18); color: #fff;
+    border: 1px solid rgba(255,255,255,0.35); border-radius: 8px;
+    font-size: 20px; line-height: 1; padding: 6px 11px; cursor: pointer; }
+  .nav-toggle:active { background: rgba(255,255,255,0.3); }
+  .nav-info { display: none; }
+  .nav-badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px;
+    border-radius: 9px; background: #e74c3c; color: #fff; font-size: 10px; font-weight: 700;
+    display: none; align-items: center; justify-content: center; padding: 0 4px; }
   .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; }
   .btn-primary { background: #2c6fad; color: #fff; }
   .btn-primary:hover { background: #1a5490; }
@@ -301,9 +310,37 @@
     .app-header h1 { font-size: 14px; }
     .app-header .today-badge { font-size: 10px; padding: 3px 10px; }
     #syncBadge { font-size: 10px !important; padding: 3px 8px !important; }
-    .header-actions { gap: 5px; }
     .btn { padding: 6px 10px; font-size: 11px; }
-    .btn-ghost span, .btn-ghost-text { display: none; }
+
+    /* メニューをハンバーガーに格納 */
+    .app-header { position: relative; flex-wrap: nowrap; padding-right: 58px; gap: 6px; }
+    .app-header > div:first-child { flex: 1; min-width: 0; }
+    .app-header h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* 日付・ユーザーはメニュー内に移して、ヘッダーはタイトルだけに */
+    .app-header .today-badge, .app-header .user-badge { display: none !important; }
+    #syncBadge { padding: 3px 9px !important; }
+    .nav-info { display: block; padding: 9px 12px 10px; margin-bottom: 4px;
+      border-bottom: 1px solid #e5eaf0; color: #5a6b7d; font-size: 12px; line-height: 1.6; }
+    .nav-info b { color: #2c3e50; display: block; font-size: 13px; }
+    .nav-info a { color: #2c6fad; font-size: 11px; text-decoration: underline; cursor: pointer; }
+    .nav-toggle { display: block; position: absolute; top: 50%; right: 12px;
+      transform: translateY(-50%); z-index: 60; }
+    .header-actions {
+      display: none; position: absolute; top: calc(100% + 6px); right: 8px; left: auto;
+      flex-direction: column; align-items: stretch; gap: 0; z-index: 59;
+      background: #fff; border-radius: 10px; padding: 6px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.28); min-width: 190px;
+    }
+    .header-actions.open { display: flex; }
+    .header-actions .btn {
+      justify-content: flex-start; background: none !important; border: none !important;
+      color: #2c3e50 !important; font-size: 14px; padding: 11px 12px; border-radius: 7px;
+      border-bottom: 1px solid #eef1f5 !important;
+    }
+    .header-actions .btn:last-child { border-bottom: none !important; }
+    .header-actions .btn:active { background: #eef4fb !important; }
+    .header-actions .btn-success { color: #1e8449 !important; font-weight: 700; }
+    .header-actions .btn span { display: inline-flex !important; }
 
     /* Main */
     .main { padding: 10px 10px; }
@@ -618,7 +655,9 @@
   <span class="today-badge" id="todayLabel"></span>
   <span class="user-badge" id="userBadge" style="display:none"></span>
   <span id="syncBadge" style="background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;font-size:11px;display:none"></span>
-  <div class="header-actions">
+  <button id="navToggle" class="nav-toggle" onclick="toggleNav(event)" aria-label="メニュー" aria-expanded="false">☰</button>
+  <div class="header-actions" id="headerActions">
+    <div id="navInfo" class="nav-info"></div>
     <button class="btn btn-success" onclick="openAddModal()">＋ 受注追加</button>
     <button class="btn btn-ghost" onclick="printAllCalendar()">📅 カレンダー</button>
     <button class="btn btn-ghost" onclick="toggleMatch()">🔍 照合</button>
@@ -1422,8 +1461,8 @@ async function parseKoteiPdf(file, onProgress) {
     });
   });
   out.sort((a, b) => (a.nk || '9999').localeCompare(b.nk || '9999'));
-  // 取りこぼし検知用の情報を添える
-  out.diag = { expected: rawMikan, parsed: out.length, pages: pdf.numPages, calib };
+  // 診断情報は配列に付けない（付けるとFirebaseが配列ではなくオブジェクトで保存してしまう）
+  _lastParseDiag = { expected: rawMikan, parsed: out.length, pages: pdf.numPages, calib };
   return out;
 }
 
@@ -1626,6 +1665,8 @@ function buildMatches() {
 
 let _matchCache = null;
 let koteiMeta = null;   // { fileName, importedAt, count, by }
+let _koteiLocalWrite = false;   // 自分が書き込んだ直後かどうか
+let _lastParseDiag = null;      // 直近のPDF解析の診断情報
 let _mtNoPrint = new Set();   // 印刷から除外する受注No
 
 function toggleRowPrint(no, on) {
@@ -1678,7 +1719,7 @@ async function onKoteiPdfPicked(ev) {
     }
     const withDate = rows.filter(r => r.nk).length;
     const withPhase = rows.filter(r => r.se || r.ke || r.ks).length;
-    const d = rows.diag || {};
+    const d = _lastParseDiag || {};
     // PDF内の「未完了」の数と読み取れた件数が合わない場合は警告（取りこぼし検知）
     const missing = (d.expected || 0) - rows.length;
     const warn = missing > 0
@@ -1736,29 +1777,68 @@ function resetKoteiData() {
 }
 
 function saveKoteiData() {
-  try {
-    localStorage.setItem('wf_kotei', JSON.stringify({ rows: KOTEI_DATA, meta: koteiMeta }));
-  } catch {}
-  if (db) db.ref('koteiData').set({ rows: KOTEI_DATA, meta: koteiMeta }).catch(() => {});
+  // 余計なプロパティが付いた配列はFirebaseがオブジェクト化するため、純粋な配列にして渡す
+  const payload = { rows: Array.from(KOTEI_DATA), meta: koteiMeta };
+  try { localStorage.setItem('wf_kotei', JSON.stringify(payload)); } catch {}
+  if (!db) { showToast('オフラインのため、この端末にのみ保存しました', 'error'); return; }
+  _koteiLocalWrite = true;          // 自分の書き込みでは通知を出さない
+  db.ref('koteiData').set(payload)
+    .then(() => showToast('全端末に共有しました', 'success'))
+    .catch(e => {
+      _koteiLocalWrite = false;
+      console.warn('koteiData保存エラー:', e);
+      showToast('共有に失敗しました。この端末にのみ保存されています', 'error');
+    });
+}
+
+// Firebaseは配列を「キーが数字のオブジェクト」で返すことがあるため配列へ戻す
+function normalizeKoteiRows(rows) {
+  if (Array.isArray(rows)) return rows.filter(r => r && r.no !== undefined);
+  if (rows && typeof rows === 'object') {
+    return Object.keys(rows)
+      .filter(k => /^\d+$/.test(k))
+      .sort((a, b) => a - b)
+      .map(k => rows[k])
+      .filter(r => r && r.no !== undefined);
+  }
+  return [];
 }
 
 function loadKoteiData() {
   try {
     const v = JSON.parse(localStorage.getItem('wf_kotei') || 'null');
-    if (v && Array.isArray(v.rows) && v.rows.length) { KOTEI_DATA = v.rows; koteiMeta = v.meta || null; }
+    const r = v && normalizeKoteiRows(v.rows);
+    if (r && r.length) { KOTEI_DATA = r; koteiMeta = v.meta || null; }
   } catch {}
   if (db) {
+    let first = true;
     db.ref('koteiData').on('value', snap => {
       const v = snap.val();
-      if (v && Array.isArray(v.rows) && v.rows.length) {
-        KOTEI_DATA = v.rows; koteiMeta = v.meta || null;
-        try { localStorage.setItem('wf_kotei', JSON.stringify(v)); } catch {}
+      const rows = v && normalizeKoteiRows(v.rows);
+      if (rows && rows.length) {
+        const changed = koteiMeta && v.meta && koteiMeta.importedAt !== v.meta.importedAt;
+        KOTEI_DATA = rows; koteiMeta = v.meta || null;
+        try { localStorage.setItem('wf_kotei', JSON.stringify({ rows, meta: koteiMeta })); } catch {}
         _matchCache = null;
         _mtNoPrint = new Set();   // データが変われば印刷選択もリセット
+
+        // 開いている画面を再描画
         const sec = document.getElementById('matchSection');
         if (sec && sec.style.display !== 'none') renderMatch();
+        const kv = document.getElementById('koteiViewer');
+        if (kv && kv.style.display !== 'none') buildKoteiTable();
+
+        // 他の端末からの更新だけ通知する
+        if (!first && changed && !_koteiLocalWrite) {
+          showToast(`工程管理表が更新されました（${rows.length}件）`, 'success');
+        }
+        _koteiLocalWrite = false;
       }
-    }, () => {});
+      first = false;
+    }, e => {
+      console.warn('koteiData読込エラー:', e);
+      showToast('工程管理表の同期に失敗しました', 'error');
+    });
   }
 }
 
@@ -3451,6 +3531,43 @@ function loadArchive() {
 // ===========================
 // SETTINGS
 // ===========================
+// ===== スマホ用ハンバーガーメニュー =====
+function toggleNav(e) {
+  if (e) e.stopPropagation();
+  const el = document.getElementById('headerActions');
+  const open = !el.classList.contains('open');
+  if (open) {
+    // ヘッダーに収まらない日付・ユーザー情報はメニューの先頭に出す
+    const u = (auth && auth.currentUser && auth.currentUser.email) || '';
+    document.getElementById('navInfo').innerHTML =
+      `<b>${escHtml(document.getElementById('todayLabel').textContent || '')}</b>` +
+      (u ? `👤 ${escHtml(u)}　<a onclick="closeNav();doLogout()">ログアウト</a>` : '');
+  }
+  el.classList.toggle('open', open);
+  document.getElementById('navToggle').setAttribute('aria-expanded', String(open));
+}
+function closeNav() {
+  const el = document.getElementById('headerActions');
+  if (el && el.classList.contains('open')) {
+    el.classList.remove('open');
+    document.getElementById('navToggle').setAttribute('aria-expanded', 'false');
+  }
+}
+// メニュー内のボタンを押したら閉じる
+document.getElementById('headerActions').addEventListener('click', e => {
+  if (e.target.closest('.btn')) closeNav();
+  else e.stopPropagation();          // 情報欄をタップしても閉じない
+});
+// 外側をタップ／Escで閉じる
+document.addEventListener('click', e => {
+  const el = document.getElementById('headerActions');
+  if (el && el.classList.contains('open') &&
+      !el.contains(e.target) && !e.target.closest('#navToggle')) closeNav();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNav(); });
+// PC幅に戻したら状態をリセット
+window.addEventListener('resize', () => { if (window.innerWidth > 768) closeNav(); });
+
 function toggleSettings() {
   const s = document.getElementById('settingsSection');
   s.style.display = s.style.display === 'none' ? 'block' : 'none';
