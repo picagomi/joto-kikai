@@ -457,7 +457,10 @@
   .ms-card.warn { border-left-color:#e67e22; } .ms-card.bad { border-left-color:#e74c3c; }
   .ms-card.ok { border-left-color:#27ae60; }
   .match-table { width:100%;border-collapse:collapse;font-size:11px; }
-  .match-table th { background:#eef4fb;padding:6px 5px;border:1px solid #d8e2ec;font-weight:700;white-space:nowrap;color:#2c3e50;font-size:10px; }
+  /* 縦横スクロールできる枠。見出しはこの枠の上端に固定する */
+  .match-scroll { max-height: calc(100vh - 180px); overflow: auto; border: 1px solid #e3e8ee; border-radius: 6px; }
+  .match-table th { background:#eef4fb;padding:6px 5px;border:1px solid #d8e2ec;font-weight:700;white-space:nowrap;color:#2c3e50;font-size:10px;
+    position: sticky; top: 0; z-index: 3; }
   .match-table td { padding:5px;border:1px solid #e3e8ee;vertical-align:top; }
   .match-table tr:hover td { background:#f7fbff; }
   .mt-nm { min-width:150px;word-break:break-word;font-weight:600; }
@@ -485,13 +488,15 @@
   .mt-nomatch td { background:#fffbf5; }
   /* ===== 取込データ ビューア ===== */
   .kv-table { width:100%;border-collapse:collapse;font-size:11px;background:#fff; }
+  .kv-scroll { max-height: calc(100vh - 150px); overflow: auto; border: 1px solid #ddd6ee; border-radius: 6px; }
   .kv-table th { background:#6a4bb8;color:#fff;padding:6px 4px;border:1px solid #5a3fa0;font-weight:700;
     white-space:nowrap;font-size:10px;position:sticky;top:0;z-index:2; }
   .kv-table td { padding:5px 4px;border:1px solid #e3e8ee;vertical-align:top; }
   .kv-table tr:nth-child(even) td { background:#f8f9fc; }
   .kv-table tr:hover td { background:#f3eefd; }
   /* 列ごとのフィルター行 */
-  .kv-table .kv-frow th { background:#f3eefd;padding:3px;position:sticky;top:26px;z-index:2;border-top:none; }
+  /* top は見出し行の実高さに合わせてJSで設定する */
+  .kv-table .kv-frow th { background:#f3eefd;padding:3px;position:sticky;z-index:2;border-top:none; }
   .kv-table .kv-f { width:100%;box-sizing:border-box;font-size:10px;padding:3px 4px;
     border:1px solid #cfc2ea;border-radius:4px;background:#fff;color:#333;font-family:inherit; }
   .kv-table .kv-f:focus { outline:none;border-color:#6a4bb8;box-shadow:0 0 0 2px rgba(106,75,184,.15); }
@@ -577,6 +582,8 @@
     /* チェックを外した行は印刷しない */
     body.printing-match .match-table tr.mt-noprint { display:none !important; }
     body.printing-match .match-table tr.mt-noprint td { opacity:1; }
+    body.printing-match .match-scroll { max-height:none !important;overflow:visible !important;border:none !important; }
+    body.printing-match .match-table th { position:static !important; }
     body.printing-match .match-table { font-size:8px; }
     body.printing-match .match-table tr { page-break-inside:avoid; }
     body.printing-match .match-table thead { display:table-header-group; }
@@ -597,6 +604,7 @@
     body.printing-kotei .kv-table tr { page-break-inside:avoid; }
     body.printing-kotei .kv-table thead { display:table-header-group; }
     body.printing-kotei .kv-table th { position:static !important; }
+    body.printing-kotei .kv-scroll { max-height:none !important;overflow:visible !important;border:none !important; }
     body.printing-kotei .kv-frow { display:none !important; }
     body.printing-kotei .kv-table th,
     body.printing-kotei .kv-table td { -webkit-print-color-adjust:exact;print-color-adjust:exact; }
@@ -755,7 +763,7 @@
     </div>
     <div id="koteiSrcInfo" style="font-size:11px;color:#888;padding:0 4px 8px"></div>
     <div id="matchSummary" class="match-summary"></div>
-    <div style="overflow-x:auto"><div id="matchContent"></div></div>
+    <div class="match-scroll"><div id="matchContent"></div></div>
   </div>
 
   <!-- Trash Panel -->
@@ -839,7 +847,7 @@
     </div>
   </div>
   <div id="kvInfo" style="padding:8px 14px 0;font-size:11px;color:#777"></div>
-  <div id="kvBody" style="padding:10px 14px 24px;overflow-x:auto"></div>
+  <div id="kvBody" style="padding:10px 14px 24px"></div>
 </div>
 
 <div id="calendarOverlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:500;background:#f7f9fc;overflow-y:scroll;-webkit-overflow-scrolling:touch">
@@ -1847,10 +1855,10 @@ let _kvList = null;
 
 function openKoteiViewer() {
   _kvF = { no:'', nm:'', tk:'', am:'', nk:'', se:'', ke:'', ks:'', st:'' };
-  buildKoteiTable();
   const el = document.getElementById('koteiViewer');
-  el.style.display = 'block';
+  el.style.display = 'block';       // 高さを実測するため先に表示する
   el.scrollTop = 0;
+  buildKoteiTable();
 }
 function closeKoteiViewer() {
   document.getElementById('koteiViewer').style.display = 'none';
@@ -1922,7 +1930,7 @@ function buildKoteiTable() {
       ${months(k).map(m => opt('m:' + m, m.replace('-', '/'), _kvF[k])).join('')}
     </select>`;
 
-  document.getElementById('kvBody').innerHTML = `<table class="kv-table">
+  document.getElementById('kvBody').innerHTML = `<div class="kv-scroll"><table class="kv-table">
     <thead>
       <tr>
         <th style="width:34px">#</th><th style="width:96px">受注No</th><th>受注品名</th>
@@ -1946,12 +1954,25 @@ function buildKoteiTable() {
       </tr>
     </thead>
     <tbody id="kvRows"></tbody>
-  </table>
+  </table></div>
   <div id="kvEmpty" style="display:none" class="empty-state"><div class="icon">📋</div>該当するデータがありません</div>
   <div style="font-size:10px;color:#888;margin-top:8px">
     ※ 納品日が本日より前の案件は赤字　※「—」は元表で未入力　※ 工程日は元表の月日＋曜日から年を判定
   </div>`;
+  kvPinFilterRow();
   renderKoteiRows();
+}
+
+// フィルター行を見出し行のすぐ下に固定する（見出しの実高さに追従）
+function kvPinFilterRow() {
+  const apply = () => {
+    const headTh = document.querySelector('.kv-table thead tr:first-child th');
+    if (!headTh) return 0;
+    const h = Math.round(headTh.getBoundingClientRect().height);
+    if (h > 0) document.querySelectorAll('.kv-table .kv-frow th').forEach(th => { th.style.top = h + 'px'; });
+    return h;
+  };
+  if (apply() === 0) requestAnimationFrame(apply);   // 非表示直後などで測れない場合は次フレームで再計測
 }
 
 // 明細だけを再描画（フィルター入力のフォーカスを保つ）
