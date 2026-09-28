@@ -1254,9 +1254,43 @@ const PDF_COLS = [
 ];
 const WD_JP = '月火水木金土日';
 
+// 実際に使う列範囲（キャリブレーションで補正される）
+let PDF_COLS_ACTIVE = PDF_COLS;
+
 function pdfColOf(x) {
-  for (const c of PDF_COLS) if (x >= c.x0 && x < c.x1) return c.k;
+  for (const c of PDF_COLS_ACTIVE) if (x >= c.x0 && x < c.x1) return c.k;
   return null;
+}
+
+// レイアウト自動追従：見出しの実測位置から列範囲を線形補正する
+// 基準PDF（工程管理 打合せ）での見出しX座標
+const PDF_ANCHORS = { '受注品名': 163.8, '合計金額': 207.1, '現在の状況': 317.3, '進捗': 520.1, 'ロールメッキ': 428.1 };
+
+function calibratePdfCols(items) {
+  const found = {};
+  items.forEach(it => {
+    const t = String(it.str || '').replace(/\s/g, '');
+    if (PDF_ANCHORS[t] !== undefined && found[t] === undefined) found[t] = it.transform[4];
+  });
+  const keys = Object.keys(found);
+  if (keys.length < 2) { PDF_COLS_ACTIVE = PDF_COLS; return { ok: false, scale: 1, offset: 0 }; }
+
+  // 最小二乗で x実測 = scale * x基準 + offset を求める
+  const n = keys.length;
+  let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  keys.forEach(k => { const X = PDF_ANCHORS[k], Y = found[k]; sx += X; sy += Y; sxx += X * X; sxy += X * Y; });
+  const den = n * sxx - sx * sx;
+  let scale = den ? (n * sxy - sx * sy) / den : 1;
+  let offset = (sy - scale * sx) / n;
+  if (!isFinite(scale) || scale <= 0.5 || scale > 2) { scale = 1; offset = 0; }
+
+  // ずれが無視できる範囲なら基準値のまま使う
+  if (Math.abs(scale - 1) < 0.005 && Math.abs(offset) < 1.5) {
+    PDF_COLS_ACTIVE = PDF_COLS;
+    return { ok: true, scale: 1, offset: 0, anchors: n };
+  }
+  PDF_COLS_ACTIVE = PDF_COLS.map(c => ({ k: c.k, x0: c.x0 * scale + offset, x1: c.x1 * scale + offset }));
+  return { ok: true, scale, offset, anchors: n };
 }
 
 // 「26/8/18」→ Date
@@ -1297,6 +1331,9 @@ async function parseKoteiPdf(file, onProgress) {
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
   const rows = [];
+  let calib = null;
+  let rawMikan = 0;        // 生テキスト中の「未完了」出現数（取りこぼし検知用）
+  PDF_COLS_ACTIVE = PDF_COLS;
 
   for (let pi = 1; pi <= pdf.numPages; pi++) {
     if (onProgress) onProgress(pi, pdf.numPages);
@@ -1304,18 +1341,46 @@ async function parseKoteiPdf(file, onProgress) {
     const vp = page.getViewport({ scale: 1 });
     const tc = await page.getTextContent();
 
+    // 1ページ目の見出しから列位置を補正（レイアウト変更に自動追従）
+    if (pi === 1) calib = calibratePdfCols(tc.items);
+    rawMikan += (tc.items.map(i => i.str).join('').match(/未完了/g) || []).length;
+
     // 文字を「行（Y座標）」ごとにまとめる
+    // pdf.js は「) 11/16(」のように列をまたぐ単位で文字を返すことがあるため、
+    // 1文字ずつ中心座標で列を判定する
     const lines = [];
+    const put = (y, col, s) => {
+      let ln = lines.find(l => Math.abs(l.y - y) < 4);
+      if (!ln) { ln = { y, cells: {} }; lines.push(ln); }
+      ln.cells[col] = (ln.cells[col] || '') + s;
+    };
     tc.items.forEach(it => {
       const str = it.str;
       if (!str || !str.trim()) return;
-      const x = it.transform[4];
-      const y = vp.height - it.transform[5];      // 上端からの座標に変換
-      const col = pdfColOf(x);
-      if (!col) return;
-      let ln = lines.find(l => Math.abs(l.y - y) < 4);
-      if (!ln) { ln = { y, cells: {} }; lines.push(ln); }
-      ln.cells[col] = (ln.cells[col] || '') + str;
+      const x0 = it.transform[4];
+      const y  = vp.height - it.transform[5];     // 上端からの座標に変換
+      const w  = Number(it.width) || 0;
+
+      // 文字列全体が1つの列に収まる場合はそのまま入れる（高速パス）
+      const cStart = pdfColOf(x0), cEnd = pdfColOf(x0 + Math.max(w - 0.1, 0));
+      if (w <= 0 || (cStart && cStart === cEnd)) {
+        if (cStart) put(y, cStart, str);
+        return;
+      }
+
+      // 列をまたぐ場合：全角=2/半角=1 の重みで各文字の位置を推定し、中心で判定
+      const chars = [...str];
+      const wt = chars.map(ch => /[ᄀ-ᅟ⺀-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦]/.test(ch) ? 2 : 1);
+      const wtSum = wt.reduce((a, b) => a + b, 0) || 1;
+      let cx = x0;
+      chars.forEach((ch, i) => {
+        const cw = w * wt[i] / wtSum;
+        if (ch.trim()) {
+          const col = pdfColOf(cx + cw / 2);
+          if (col) put(y, col, ch);
+        }
+        cx += cw;
+      });
     });
     lines.sort((a, b) => a.y - b.y);
 
@@ -1357,6 +1422,8 @@ async function parseKoteiPdf(file, onProgress) {
     });
   });
   out.sort((a, b) => (a.nk || '9999').localeCompare(b.nk || '9999'));
+  // 取りこぼし検知用の情報を添える
+  out.diag = { expected: rawMikan, parsed: out.length, pages: pdf.numPages, calib };
   return out;
 }
 
@@ -1611,9 +1678,16 @@ async function onKoteiPdfPicked(ev) {
     }
     const withDate = rows.filter(r => r.nk).length;
     const withPhase = rows.filter(r => r.se || r.ke || r.ks).length;
+    const d = rows.diag || {};
+    // PDF内の「未完了」の数と読み取れた件数が合わない場合は警告（取りこぼし検知）
+    const missing = (d.expected || 0) - rows.length;
+    const warn = missing > 0
+      ? `\n⚠ PDF内の「未完了」は ${d.expected} 件ですが、${rows.length} 件しか読み取れていません` +
+        `（${missing} 件が取りこぼし）。\n　このまま反映すると照合結果が不完全になります。\n`
+      : '';
     const ok = confirm(
-      `PDFから未完了 ${rows.length.toLocaleString('ja-JP')} 件を読み取りました。\n` +
-      `　納品日あり：${withDate} 件\n　工程日あり：${withPhase} 件\n\n` +
+      `PDF（${d.pages || '?'}ページ）から未完了 ${rows.length.toLocaleString('ja-JP')} 件を読み取りました。\n` +
+      `　納品日あり：${withDate} 件\n　工程日あり：${withPhase} 件\n` + warn + '\n' +
       `現在の照合データ（${KOTEI_DATA.length.toLocaleString('ja-JP')} 件）を置き換えます。よろしいですか？`);
     if (!ok) { info.innerHTML = prev; return; }
 
